@@ -25,3 +25,6 @@ __pycache__/
 # Arquivos do sistema operacional
 .DS_Store
 Thumbs.db
+
+# Dados brutos e bancos de dados que não devem ir para o repositório
+dados_brutos/
