@@ -112,6 +112,64 @@ class DespesaOrcamentariaService:
         except Exception as e:
             logger.error(f"❌ Erro na consulta: {e}")
             return None
+    
+    def obter_lista_ugs(self) -> List[Dict[str, str]]:
+        """
+        Busca lista de todas as UGs disponíveis no banco
+        
+        Returns:
+            Lista de dicionários com código e nome das UGs
+        """
+        try:
+            logger.info("🔍 Buscando lista de UGs do banco...")
+            
+            # Query simplificada para buscar apenas UGs únicas
+            query = """
+                SELECT DISTINCT 
+                    T1.COUG,
+                    T1.NOUG
+                FROM MIL2025.UNIDADEGESTORA T1
+                WHERE T1.COUG IS NOT NULL 
+                  AND T1.NOUG IS NOT NULL
+                ORDER BY T1.COUG
+            """
+            
+            with self.db_manager.get_cursor() as cursor:
+                cursor.execute(query)
+                results = cursor.fetchall()
+            
+            # Converter para lista de dicionários
+            ugs = []
+            for row in results:
+                if row[0] and row[1]:  # Verificar se código e nome existem
+                    ugs.append({
+                        'codigo': str(row[0]).strip(),
+                        'nome': str(row[1]).strip()
+                    })
+            
+            logger.info(f"✅ {len(ugs)} UGs encontradas")
+            return ugs
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar lista de UGs: {e}")
+            # Tentar obter do cache de dados se houver
+            try:
+                if self.cache:
+                    df = self.cache.carregar()
+                    if df is not None and 'COUG' in df.columns and 'NOUG' in df.columns:
+                        ugs_df = df[['COUG', 'NOUG']].drop_duplicates().dropna()
+                        ugs = []
+                        for _, row in ugs_df.iterrows():
+                            ugs.append({
+                                'codigo': str(row['COUG']).strip(),
+                                'nome': str(row['NOUG']).strip()
+                            })
+                        logger.info(f"✅ {len(ugs)} UGs obtidas do cache")
+                        return sorted(ugs, key=lambda x: x['codigo'])
+            except:
+                pass
+            
+            return []
             
     def executar_consulta(
         self, 
@@ -314,24 +372,46 @@ class DespesaOrcamentariaService:
             self.cache.limpar()
         logger.info("🧹 Cache limpo")
         
-    def obter_filtros_disponiveis(self, df: pd.DataFrame) -> Dict:
-        """Retorna filtros disponíveis baseados nos dados"""
-        if df is None or df.empty:
-            return {}
-            
+    def obter_filtros_disponiveis(self, df: pd.DataFrame = None) -> Dict:
+        """
+        Retorna filtros disponíveis baseados nos dados ou diretamente do banco
+        
+        Args:
+            df: DataFrame opcional. Se não fornecido, busca UGs direto do banco
+        """
         filtros = {
-            'exercicios': sorted(df['COEXERCICIO'].unique().tolist()) if 'COEXERCICIO' in df.columns else [],
-            'meses': sorted(df['INMES'].unique().tolist()) if 'INMES' in df.columns else [],
+            'exercicios': [],
+            'meses': [],
             'unidades_gestoras': [],
-            'funcoes': sorted(df['COFUNCAO'].unique().tolist()) if 'COFUNCAO' in df.columns else [],
-            'fontes': sorted(df['COFONTE'].unique().tolist()) if 'COFONTE' in df.columns else []
+            'funcoes': [],
+            'fontes': []
         }
         
-        if 'COUG' in df.columns and 'NOUG' in df.columns:
-            ugs = df[['COUG', 'NOUG']].drop_duplicates().sort_values('COUG')
-            filtros['unidades_gestoras'] = [
-                {'codigo': row['COUG'], 'nome': row['NOUG']} 
-                for _, row in ugs.iterrows()
-            ]
+        # Buscar UGs diretamente do banco (mais confiável)
+        try:
+            ugs = self.obter_lista_ugs()
+            filtros['unidades_gestoras'] = ugs
+        except Exception as e:
+            logger.error(f"Erro ao buscar UGs: {e}")
             
+            # Fallback: tentar obter do DataFrame se disponível
+            if df is not None and not df.empty:
+                if 'COUG' in df.columns and 'NOUG' in df.columns:
+                    ugs_df = df[['COUG', 'NOUG']].drop_duplicates().dropna().sort_values('COUG')
+                    filtros['unidades_gestoras'] = [
+                        {'codigo': str(row['COUG']).strip(), 'nome': str(row['NOUG']).strip()} 
+                        for _, row in ugs_df.iterrows()
+                    ]
+        
+        # Outros filtros do DataFrame se disponível
+        if df is not None and not df.empty:
+            if 'COEXERCICIO' in df.columns:
+                filtros['exercicios'] = sorted(df['COEXERCICIO'].unique().tolist())
+            if 'INMES' in df.columns:
+                filtros['meses'] = sorted(df['INMES'].unique().tolist())
+            if 'COFUNCAO' in df.columns:
+                filtros['funcoes'] = sorted(df['COFUNCAO'].dropna().unique().tolist())
+            if 'COFONTE' in df.columns:
+                filtros['fontes'] = sorted(df['COFONTE'].dropna().unique().tolist())
+                
         return filtros

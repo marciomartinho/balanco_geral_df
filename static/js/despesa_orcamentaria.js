@@ -1,6 +1,6 @@
 /**
- * Sistema de Despesa Orçamentária
- * Versão Completa com Cards Sincronizados
+ * Sistema de Despesa Orçamentária - Com Filtro de UG
+ * Versão 2.0 - Incluindo filtro de Unidade Gestora
  * Sistema de Balanço Geral DF
  */
 
@@ -25,7 +25,8 @@ const AppState = {
     dadosFiltrados: null,
     filtrosAtuais: null,
     totaisCalculados: null,
-    ultimaConsulta: null
+    ultimaConsulta: null,
+    listaUGs: null  // NOVO: Lista de UGs disponíveis
 };
 
 // ============================================================================
@@ -173,6 +174,27 @@ const UI = {
     },
 
     /**
+     * NOVO: Atualiza badge da UG selecionada
+     */
+    atualizarBadgeUG: function(ug) {
+        const badge = document.getElementById('ugSelecionada');
+        if (!badge) return;
+        
+        if (ug === 'CONSOLIDADO' || !ug) {
+            badge.style.display = 'none';
+        } else {
+            // Encontrar nome da UG
+            const ugInfo = AppState.listaUGs?.find(u => u.codigo === ug);
+            if (ugInfo) {
+                badge.textContent = `${ugInfo.codigo} - ${ugInfo.nome}`;
+            } else {
+                badge.textContent = `UG: ${ug}`;
+            }
+            badge.style.display = 'inline-block';
+        }
+    },
+
+    /**
      * Configura filtros com valores padrão
      */
     configurarFiltrosPadrao: function() {
@@ -182,6 +204,7 @@ const UI = {
 
         const selectExercicio = document.getElementById('exercicio');
         const selectMes = document.getElementById('mes');
+        const selectUG = document.getElementById('unidadeGestora');
 
         if (selectExercicio) {
             if (![...selectExercicio.options].some(opt => opt.value == anoAtual)) {
@@ -194,9 +217,18 @@ const UI = {
             selectMes.value = mesAtual;
         }
 
-        console.log(`📅 Filtros padrão: ${anoAtual} / ${Formatadores.nomeMes(mesAtual)}`);
+        // NOVO: Configurar UG padrão como CONSOLIDADO
+        if (selectUG) {
+            selectUG.value = 'CONSOLIDADO';
+        }
+
+        console.log(`📅 Filtros padrão: ${anoAtual} / ${Formatadores.nomeMes(mesAtual)} / CONSOLIDADO`);
         
-        return { exercicio: anoAtual, mes: mesAtual };
+        return { 
+            exercicio: anoAtual, 
+            mes: mesAtual,
+            ug: 'CONSOLIDADO'
+        };
     },
 
     /**
@@ -220,6 +252,88 @@ const UI = {
 // ============================================================================
 
 const DadosManager = {
+    /**
+     * NOVO: Busca lista de UGs disponíveis
+     */
+    buscarUGs: async function() {
+        try {
+            console.log('🔍 Buscando lista de UGs...');
+            
+            // Usar endpoint dedicado de UGs
+            const response = await fetch(`${AppConfig.apiBaseUrl}/ugs`);
+            const result = await response.json();
+
+            if (result.success && result.unidades_gestoras) {
+                const ugs = result.unidades_gestoras || [];
+                console.log(`✅ ${ugs.length} UGs encontradas ${result.fonte ? '(fonte: ' + result.fonte + ')' : ''}`);
+                
+                AppState.listaUGs = ugs;
+                
+                // Atualizar select de UGs
+                const selectUG = document.getElementById('unidadeGestora');
+                if (selectUG && ugs.length > 0) {
+                    // Limpar opções existentes (mantendo CONSOLIDADO)
+                    while (selectUG.options.length > 1) {
+                        selectUG.remove(1);
+                    }
+                    
+                    // Adicionar UGs ordenadas por código
+                    ugs.sort((a, b) => a.codigo.localeCompare(b.codigo));
+                    ugs.forEach(ug => {
+                        const option = new Option(
+                            `${ug.codigo} - ${ug.nome}`,
+                            ug.codigo
+                        );
+                        selectUG.add(option);
+                    });
+                    
+                    console.log(`📝 ${ugs.length} UGs adicionadas ao select`);
+                } else if (selectUG && ugs.length === 0) {
+                    console.warn('⚠️ Nenhuma UG retornada do servidor');
+                }
+                
+                return ugs;
+            } else {
+                console.warn('⚠️ Resposta inválida do servidor:', result);
+                
+                // Tentar endpoint alternativo /api/filtros como fallback
+                console.log('🔄 Tentando endpoint alternativo /api/filtros...');
+                const response2 = await fetch(`${AppConfig.apiBaseUrl}/filtros`);
+                const result2 = await response2.json();
+                
+                if (result2.success && result2.filtros && result2.filtros.unidades_gestoras) {
+                    const ugs = result2.filtros.unidades_gestoras || [];
+                    console.log(`✅ ${ugs.length} UGs encontradas (via filtros)`);
+                    
+                    AppState.listaUGs = ugs;
+                    
+                    // Atualizar select
+                    const selectUG = document.getElementById('unidadeGestora');
+                    if (selectUG && ugs.length > 0) {
+                        while (selectUG.options.length > 1) {
+                            selectUG.remove(1);
+                        }
+                        
+                        ugs.sort((a, b) => a.codigo.localeCompare(b.codigo));
+                        ugs.forEach(ug => {
+                            const option = new Option(
+                                `${ug.codigo} - ${ug.nome}`,
+                                ug.codigo
+                            );
+                            selectUG.add(option);
+                        });
+                    }
+                    
+                    return ugs;
+                }
+            }
+        } catch (error) {
+            console.error('❌ Erro ao buscar UGs:', error);
+        }
+        
+        return [];
+    },
+
     /**
      * Busca dados do servidor
      */
@@ -252,7 +366,7 @@ const DadosManager = {
     },
 
     /**
-     * Aplica filtros aos dados - CORRIGIDO para sincronizar com tabela
+     * Aplica filtros aos dados - MODIFICADO para incluir UG
      */
     filtrarDados: function(dados, filtros) {
         if (!dados || dados.length === 0) return [];
@@ -260,16 +374,40 @@ const DadosManager = {
         console.log('🔍 Aplicando filtros:', filtros);
         const inicio = Date.now();
 
-        // IMPORTANTE: Filtrar APENAS pelo exercício selecionado (não o anterior)
+        // Variável para debug
+        let primeiroDebug = true;
+
         let dadosFiltrados = dados.filter(row => {
             const exercicio = parseInt(row.COEXERCICIO);
             const mes = parseInt(row.INMES);
             
-            // Filtrar pelo exercício exato e mês limite
+            // Filtrar pelo exercício e mês
             const exercicioValido = exercicio === filtros.exercicio;
             const mesValido = mes <= filtros.mes;
             
-            return exercicioValido && mesValido;
+            // NOVO: Filtrar por UG se não for CONSOLIDADO
+            // Comparar como string E como número para garantir compatibilidade
+            let ugValida = true;
+            if (filtros.ug && filtros.ug !== 'CONSOLIDADO') {
+                // Converter ambos para string e remover espaços para comparação
+                const ugFiltro = String(filtros.ug).trim();
+                const ugRow = String(row.COUG).trim();
+                
+                // Também tentar comparação numérica se ambos forem números
+                const ugFiltroNum = parseInt(ugFiltro);
+                const ugRowNum = parseInt(ugRow);
+                
+                ugValida = (ugRow === ugFiltro) || 
+                          (!isNaN(ugFiltroNum) && !isNaN(ugRowNum) && ugFiltroNum === ugRowNum);
+                
+                // Debug para primeira linha
+                if (primeiroDebug && row.COUG) {
+                    console.log(`Debug UG - Filtro: "${ugFiltro}" (${typeof ugFiltro}), Row: "${ugRow}" (${typeof row.COUG}), Match: ${ugValida}`);
+                    primeiroDebug = false;
+                }
+            }
+            
+            return exercicioValido && mesValido && ugValida;
         });
 
         const tempo = Date.now() - inicio;
@@ -277,6 +415,39 @@ const DadosManager = {
         console.log(`📊 Resultado:`);
         console.log(`   - Exercício ${filtros.exercicio}: ${dadosFiltrados.length} registros`);
         console.log(`   - Até mês ${filtros.mes} (${Formatadores.nomeMes(filtros.mes)})`);
+        
+        // NOVO: Log da UG filtrada com mais detalhes
+        if (filtros.ug && filtros.ug !== 'CONSOLIDADO') {
+            const ugInfo = AppState.listaUGs?.find(u => u.codigo === filtros.ug);
+            console.log(`   - UG: ${filtros.ug} ${ugInfo ? '- ' + ugInfo.nome : ''}`);
+            
+            // Debug: verificar se há dados para esta UG em qualquer período
+            const todosRegistrosUG = dados.filter(row => {
+                const ugRow = String(row.COUG).trim();
+                const ugFiltro = String(filtros.ug).trim();
+                return ugRow === ugFiltro || parseInt(ugRow) === parseInt(ugFiltro);
+            });
+            
+            if (todosRegistrosUG.length > 0) {
+                console.log(`   - Total de registros para UG ${filtros.ug} (todos os períodos): ${todosRegistrosUG.length}`);
+                
+                // Verificar exercícios disponíveis para esta UG
+                const exerciciosUG = [...new Set(todosRegistrosUG.map(r => r.COEXERCICIO))];
+                console.log(`   - Exercícios disponíveis para esta UG: ${exerciciosUG.join(', ')}`);
+                
+                // Verificar meses disponíveis para esta UG no exercício selecionado
+                const registrosExercicio = todosRegistrosUG.filter(r => parseInt(r.COEXERCICIO) === filtros.exercicio);
+                if (registrosExercicio.length > 0) {
+                    const mesesUG = [...new Set(registrosExercicio.map(r => r.INMES))].sort((a, b) => a - b);
+                    console.log(`   - Meses disponíveis para ${filtros.exercicio}: ${mesesUG.join(', ')}`);
+                }
+            } else {
+                console.log(`   ⚠️ NENHUM registro encontrado para UG ${filtros.ug} em qualquer período`);
+            }
+        } else {
+            console.log(`   - UG: CONSOLIDADO (todas)`);
+        }
+        
         console.log(`   - Total: ${dadosFiltrados.length} de ${dados.length} registros`);
 
         AppState.dadosFiltrados = dadosFiltrados;
@@ -286,7 +457,7 @@ const DadosManager = {
     },
 
     /**
-     * Calcula totais dos dados filtrados (igual à tabela)
+     * Calcula totais dos dados filtrados
      */
     calcularTotais: function(dados) {
         const totais = {
@@ -303,7 +474,6 @@ const DadosManager = {
         
         if (!dados || dados.length === 0) return totais;
         
-        // Calcular exatamente como a tabela
         dados.forEach(row => {
             totais.dotacao_inicial += parseFloat(row.DOTACAO_INICIAL || 0);
             totais.dotacao_adicional += parseFloat(row.DOTACAO_ADICIONAL || 0);
@@ -314,13 +484,11 @@ const DadosManager = {
             totais.despesa_paga += parseFloat(row.DESPESA_PAGA || 0);
         });
         
-        // Calcular dotação atualizada
         totais.dotacao_atualizada = totais.dotacao_inicial + 
                                     totais.dotacao_adicional + 
                                     totais.cancelamento_dotacao + 
                                     totais.cancel_remaneja_dotacao;
         
-        // Calcular saldo
         totais.saldo_dotacao = totais.dotacao_atualizada - totais.despesa_empenhada;
         
         return totais;
@@ -380,7 +548,6 @@ const TabelaRenderer = {
         const agregados = this.agregarDados(dados);
         const totalGeral = this.renderizarLinhas(tbody, agregados);
         
-        // Retornar o total geral para sincronizar com os cards
         return totalGeral;
     },
 
@@ -479,7 +646,6 @@ const TabelaRenderer = {
         const saldoTotal = dotacaoAtualizadaTotal - totalGeral.despesa_empenhada;
         tbody.appendChild(this.criarLinhaTotal(totalGeral, dotacaoAtualizadaTotal, saldoTotal));
         
-        // Retornar totais para sincronização
         return {
             dotacao_inicial: totalGeral.dotacao_inicial,
             dotacao_atualizada: dotacaoAtualizadaTotal,
@@ -563,7 +729,7 @@ const TabelaRenderer = {
 };
 
 // ============================================================================
-// FUNÇÃO PRINCIPAL DE CONSULTA - CORRIGIDA PARA SINCRONIZAR
+// FUNÇÃO PRINCIPAL DE CONSULTA - MODIFICADA PARA INCLUIR UG
 // ============================================================================
 
 async function consultarDados() {
@@ -575,66 +741,73 @@ async function consultarDados() {
         UI.mostrarLoadingCards();
         UI.toggleLoading(true, 'Consultando dados...');
 
-        // 2. Obter filtros
+        // 2. Obter filtros (INCLUINDO UG)
         const exercicio = parseInt(document.getElementById('exercicio').value);
         const mes = parseInt(document.getElementById('mes').value);
+        const ug = document.getElementById('unidadeGestora').value;
 
         console.log(`📅 Filtros selecionados:`);
         console.log(`   - Exercício: ${exercicio}`);
         console.log(`   - Mês: ${mes} (${Formatadores.nomeMes(mes)})`);
+        console.log(`   - UG: ${ug === 'CONSOLIDADO' ? 'CONSOLIDADO (todas)' : ug}`);
 
-        // 3. Buscar dados completos (usar cache se já carregado)
+        // 3. Atualizar badge da UG
+        UI.atualizarBadgeUG(ug);
+
+        // 4. Buscar dados completos (usar cache se já carregado)
         UI.toggleLoading(true, 'Carregando dados...');
         
         let dados = AppState.dadosCompletos;
         if (!dados) {
             dados = await DadosManager.buscarDados();
+            
+            // Carregar lista de UGs se ainda não tiver
+            if (!AppState.listaUGs) {
+                await DadosManager.buscarUGs();
+            }
         }
 
-        // 4. IMPORTANTE: Filtrar dados APENAS pelo exercício e mês selecionados
+        // 5. Filtrar dados incluindo UG
         UI.toggleLoading(true, 'Aplicando filtros...');
-        const dadosFiltrados = DadosManager.filtrarDados(dados, { exercicio, mes });
+        const dadosFiltrados = DadosManager.filtrarDados(dados, { 
+            exercicio, 
+            mes,
+            ug  // NOVO: incluir UG no filtro
+        });
 
-        // 5. Calcular totais dos dados filtrados (mesmos valores que vão para a tabela)
+        // 6. Calcular totais dos dados filtrados
         const totais = DadosManager.calcularTotais(dadosFiltrados);
         AppState.totaisCalculados = totais;
         
-        // 6. Atualizar cards com os MESMOS valores que vão aparecer na tabela
+        // 7. Atualizar cards
         UI.removerLoadingCards();
         UI.atualizarValorCard('totalRegistros', Formatadores.numero(dadosFiltrados.length));
         UI.atualizarValorCard('dotacaoInicial', Formatadores.moedaCompacta(totais.dotacao_inicial));
         UI.atualizarValorCard('despesaEmpenhada', Formatadores.moedaCompacta(totais.despesa_empenhada));
         UI.atualizarValorCard('despesaPaga', Formatadores.moedaCompacta(totais.despesa_paga));
 
-        // 7. Renderizar tabela
+        // 8. Renderizar tabela
         UI.toggleLoading(true, 'Montando demonstrativo...');
         const totaisTabela = TabelaRenderer.renderizar(dadosFiltrados);
 
-        // 8. Debug - Verificar se valores batem
+        // 9. Debug
         if (AppConfig.debug) {
-            console.log('===== VERIFICAÇÃO DE SINCRONIZAÇÃO =====');
+            console.log('===== RESUMO DA CONSULTA =====');
             console.log('Total de registros:', dadosFiltrados.length);
+            
+            if (ug !== 'CONSOLIDADO') {
+                const ugInfo = AppState.listaUGs?.find(u => u.codigo === ug);
+                console.log('UG Selecionada:', ugInfo ? `${ugInfo.codigo} - ${ugInfo.nome}` : ug);
+            }
+            
             console.log('Valores calculados:');
-            console.log('   Cards:', {
-                dotacao: Formatadores.moedaCompacta(totais.dotacao_inicial),
-                empenhada: Formatadores.moedaCompacta(totais.despesa_empenhada),
-                paga: Formatadores.moedaCompacta(totais.despesa_paga)
-            });
-            console.log('   Tabela:', {
-                dotacao: Formatadores.moedaCompacta(totaisTabela.dotacao_inicial),
-                empenhada: Formatadores.moedaCompacta(totaisTabela.despesa_empenhada),
-                paga: Formatadores.moedaCompacta(totaisTabela.despesa_paga)
-            });
-            
-            const sincronizado = Math.abs(totais.dotacao_inicial - totaisTabela.dotacao_inicial) < 0.01 &&
-                                Math.abs(totais.despesa_empenhada - totaisTabela.despesa_empenhada) < 0.01 &&
-                                Math.abs(totais.despesa_paga - totaisTabela.despesa_paga) < 0.01;
-            
-            console.log(`Status: ${sincronizado ? '✅ SINCRONIZADO' : '❌ DESSINCRONIZADO'}`);
-            console.log('=========================================');
+            console.log('   Dotação:', Formatadores.moedaCompacta(totais.dotacao_inicial));
+            console.log('   Empenhada:', Formatadores.moedaCompacta(totais.despesa_empenhada));
+            console.log('   Paga:', Formatadores.moedaCompacta(totais.despesa_paga));
+            console.log('================================');
         }
 
-        // 9. Finalizar
+        // 10. Finalizar
         AppState.ultimaConsulta = new Date();
         UI.mostrarSucesso('Dados carregados com sucesso!');
 
@@ -650,17 +823,29 @@ async function consultarDados() {
 }
 
 // ============================================================================
-// FUNÇÕES DE EXPORTAÇÃO
+// FUNÇÕES DE EXPORTAÇÃO - MODIFICADAS PARA INCLUIR UG
 // ============================================================================
 
 async function exportarDados(formato) {
     try {
         UI.toggleLoading(true, `Exportando para ${formato.toUpperCase()}...`);
 
+        // Incluir UG no nome do arquivo se estiver filtrado
+        const ug = document.getElementById('unidadeGestora').value;
+        let nomeArquivo = `despesa_orcamentaria_${new Date().toISOString().slice(0,10)}`;
+        
+        if (ug && ug !== 'CONSOLIDADO') {
+            nomeArquivo += `_UG_${ug}`;
+        }
+
         const response = await fetch(`${AppConfig.apiBaseUrl}/exportar`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ formato })
+            body: JSON.stringify({ 
+                formato,
+                nome_arquivo: nomeArquivo,
+                ug: ug !== 'CONSOLIDADO' ? ug : null
+            })
         });
 
         if (response.ok) {
@@ -668,7 +853,7 @@ async function exportarDados(formato) {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `despesa_orcamentaria_${new Date().toISOString().slice(0,10)}.${formato === 'excel' ? 'xlsx' : 'csv'}`;
+            a.download = `${nomeArquivo}.${formato === 'excel' ? 'xlsx' : 'csv'}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -702,8 +887,12 @@ async function limparCache() {
             AppState.dadosCompletos = null;
             AppState.dadosFiltrados = null;
             AppState.totaisCalculados = null;
+            AppState.listaUGs = null;
             
             UI.mostrarSucesso('Cache limpo com sucesso!');
+            
+            // Recarregar dados e UGs
+            await DadosManager.buscarUGs();
             await consultarDados();
         }
     } catch (error) {
@@ -714,7 +903,7 @@ async function limparCache() {
 }
 
 // ============================================================================
-// FUNÇÕES DE DEBUG
+// FUNÇÕES DE DEBUG - ATUALIZADAS
 // ============================================================================
 
 /**
@@ -726,6 +915,7 @@ window.debugDespesa = function() {
     console.log('Estado:', {
         totalDadosCompletos: AppState.dadosCompletos?.length || 0,
         totalDadosFiltrados: AppState.dadosFiltrados?.length || 0,
+        totalUGs: AppState.listaUGs?.length || 0,
         filtrosAtuais: AppState.filtrosAtuais,
         ultimaConsulta: AppState.ultimaConsulta
     });
@@ -740,84 +930,110 @@ window.debugDespesa = function() {
         });
     }
     
-    console.log('Valores atuais nos cards:');
-    console.log('- Total Registros:', document.getElementById('totalRegistros')?.textContent);
-    console.log('- Dotação Inicial:', document.getElementById('dotacaoInicial')?.textContent);
-    console.log('- Despesa Empenhada:', document.getElementById('despesaEmpenhada')?.textContent);
-    console.log('- Despesa Paga:', document.getElementById('despesaPaga')?.textContent);
+    // Listar UGs disponíveis
+    if (AppState.listaUGs && AppState.listaUGs.length > 0) {
+        console.log(`UGs disponíveis: ${AppState.listaUGs.length}`);
+        console.log('Primeiras 5 UGs:', AppState.listaUGs.slice(0, 5));
+    }
     
     console.log('========================================');
 };
 
 /**
- * Verifica sincronização entre cards e tabela
+ * NOVA: Lista todas as UGs disponíveis
  */
-window.verificarSincronizacao = function() {
-    console.log('===== VERIFICAÇÃO DE SINCRONIZAÇÃO =====');
-    
-    // Pegar valores dos cards
-    const cards = {
-        registros: document.getElementById('totalRegistros')?.textContent,
-        dotacao: document.getElementById('dotacaoInicial')?.textContent,
-        empenhada: document.getElementById('despesaEmpenhada')?.textContent,
-        paga: document.getElementById('despesaPaga')?.textContent
-    };
-    
-    // Pegar valores da tabela (última linha - TOTAL GERAL)
-    const tabela = document.querySelector('#tabelaCorpo tr.total-row');
-    if (tabela) {
-        const celulas = tabela.querySelectorAll('td');
-        const tabelaValores = {
-            dotacao: celulas[1]?.querySelector('strong')?.textContent,
-            atualizada: celulas[2]?.querySelector('strong')?.textContent,
-            empenhada: celulas[3]?.querySelector('strong')?.textContent,
-            liquidada: celulas[4]?.querySelector('strong')?.textContent,
-            paga: celulas[5]?.querySelector('strong')?.textContent,
-            saldo: celulas[6]?.querySelector('strong')?.textContent
-        };
-        
-        console.log('CARDS:', cards);
-        console.log('TABELA (Total Geral):', tabelaValores);
-        
-        // Comparar valores
-        const dotacaoIgual = cards.dotacao === Formatadores.moedaCompacta(
-            parseFloat(tabelaValores.dotacao?.replace(/[^\d,-]/g, '').replace(',', '.'))
-        );
-        const empenhadaIgual = cards.empenhada === Formatadores.moedaCompacta(
-            parseFloat(tabelaValores.empenhada?.replace(/[^\d,-]/g, '').replace(',', '.'))
-        );
-        const pagaIgual = cards.paga === Formatadores.moedaCompacta(
-            parseFloat(tabelaValores.paga?.replace(/[^\d,-]/g, '').replace(',', '.'))
-        );
-        
-        if (dotacaoIgual && empenhadaIgual && pagaIgual) {
-            console.log('✅ SINCRONIZADO: Cards e tabela mostram os mesmos valores!');
-        } else {
-            console.log('❌ DESSINCRONIZADO: Cards e tabela mostram valores diferentes!');
-            console.log('Diferenças:');
-            if (!dotacaoIgual) console.log('- Dotação Inicial diferente');
-            if (!empenhadaIgual) console.log('- Despesa Empenhada diferente');
-            if (!pagaIgual) console.log('- Despesa Paga diferente');
-        }
-    } else {
-        console.log('❌ Tabela ainda não renderizada');
+window.listarUGs = function() {
+    if (!AppState.listaUGs || AppState.listaUGs.length === 0) {
+        console.log('❌ Nenhuma UG carregada. Execute consultarDados() primeiro.');
+        return;
     }
     
-    console.log('=========================================');
+    console.log('===== LISTA DE UNIDADES GESTORAS =====');
+    console.log(`Total: ${AppState.listaUGs.length} UGs`);
+    console.log('');
+    
+    AppState.listaUGs.forEach(ug => {
+        console.log(`${ug.codigo} - ${ug.nome}`);
+    });
+    
+    console.log('=======================================');
+};
+
+/**
+ * NOVA: Verifica UGs nos dados carregados
+ */
+window.verificarUGsNosDados = function() {
+    if (!AppState.dadosCompletos || AppState.dadosCompletos.length === 0) {
+        console.log('❌ Nenhum dado carregado. Execute consultarDados() primeiro.');
+        return;
+    }
+    
+    console.log('===== UGs NOS DADOS CARREGADOS =====');
+    
+    // Obter UGs únicas dos dados
+    const ugsNosDados = new Set();
+    const ugsPorCodigo = {};
+    
+    AppState.dadosCompletos.forEach(row => {
+        if (row.COUG) {
+            const codigo = String(row.COUG).trim();
+            ugsNosDados.add(codigo);
+            
+            if (!ugsPorCodigo[codigo]) {
+                ugsPorCodigo[codigo] = {
+                    codigo: codigo,
+                    nome: row.NOUG || 'SEM NOME',
+                    tipo: typeof row.COUG,
+                    registros: 0
+                };
+            }
+            ugsPorCodigo[codigo].registros++;
+        }
+    });
+    
+    console.log(`Total de UGs únicas nos dados: ${ugsNosDados.size}`);
+    console.log('');
+    console.log('Primeiras 10 UGs:');
+    
+    const ugsArray = Object.values(ugsPorCodigo).sort((a, b) => a.codigo.localeCompare(b.codigo));
+    ugsArray.slice(0, 10).forEach(ug => {
+        console.log(`${ug.codigo} (tipo: ${ug.tipo}) - ${ug.nome} - ${ug.registros} registros`);
+    });
+    
+    // Verificar se a UG 10901 existe
+    if (ugsPorCodigo['10901']) {
+        console.log('');
+        console.log('✅ UG 10901 encontrada nos dados:', ugsPorCodigo['10901']);
+    } else {
+        console.log('');
+        console.log('❌ UG 10901 NÃO encontrada nos dados');
+        
+        // Procurar variações
+        const variacoes = ['010901', '10901', ' 10901', '10901 '];
+        console.log('Procurando variações...');
+        variacoes.forEach(v => {
+            if (ugsPorCodigo[v]) {
+                console.log(`Encontrada como: "${v}"`);
+            }
+        });
+    }
+    
+    console.log('=====================================');
 };
 
 // ============================================================================
-// INICIALIZAÇÃO
+// INICIALIZAÇÃO - MODIFICADA PARA CARREGAR UGs
 // ============================================================================
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('===== APLICAÇÃO INICIADA =====');
     console.log('Timestamp:', Formatadores.dataHora());
+    console.log('Versão: 2.0 - Com filtro de UG');
     console.log('Debug:', AppConfig.debug ? 'ATIVADO' : 'DESATIVADO');
     
     // Verificar elementos essenciais
     const elementosRequeridos = [
-        'tabelaCorpo', 'exercicio', 'mes',
+        'tabelaCorpo', 'exercicio', 'mes', 'unidadeGestora',
         'totalRegistros', 'dotacaoInicial', 
         'despesaEmpenhada', 'despesaPaga'
     ];
@@ -839,13 +1055,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar filtros padrão
     UI.configurarFiltrosPadrao();
     
+    // NOVO: Carregar lista de UGs primeiro
+    console.log('📊 Carregando lista de UGs...');
+    await DadosManager.buscarUGs();
+    
     // Iniciar consulta automática
     console.log('📊 Iniciando consulta automática...');
-    consultarDados();
+    await consultarDados();
     
     console.log('===== INICIALIZAÇÃO COMPLETA =====');
     console.log('💡 Dicas de debug:');
     console.log('   - debugDespesa() para ver estado da aplicação');
-    console.log('   - verificarSincronizacao() para verificar cards vs tabela');
+    console.log('   - listarUGs() para ver todas as UGs disponíveis');
     console.log('   - consultarDados() para recarregar dados');
 });

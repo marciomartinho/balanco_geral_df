@@ -38,6 +38,57 @@ def relatorio():
 
 # ==================== ROTAS DA API ====================
 
+@despesa_orcamentaria_bp.route('/api/ugs', methods=['GET'])
+def api_listar_ugs():
+    """
+    Endpoint específico para listar todas as UGs disponíveis
+    Busca diretamente do banco de dados
+    """
+    try:
+        logger.info("Buscando lista de UGs...")
+        
+        # Buscar UGs diretamente do banco
+        ugs = despesa_service.obter_lista_ugs()
+        
+        if ugs:
+            return jsonify({
+                'success': True,
+                'unidades_gestoras': ugs,
+                'total': len(ugs)
+            })
+        else:
+            # Se não conseguir do banco, tentar do cache
+            df = despesa_service.executar_consulta()
+            if df is not None and not df.empty and 'COUG' in df.columns and 'NOUG' in df.columns:
+                ugs_df = df[['COUG', 'NOUG']].drop_duplicates().dropna()
+                ugs = []
+                for _, row in ugs_df.iterrows():
+                    ugs.append({
+                        'codigo': str(row['COUG']).strip(),
+                        'nome': str(row['NOUG']).strip()
+                    })
+                ugs.sort(key=lambda x: x['codigo'])
+                
+                return jsonify({
+                    'success': True,
+                    'unidades_gestoras': ugs,
+                    'total': len(ugs),
+                    'fonte': 'cache'
+                })
+            
+            return jsonify({
+                'success': False,
+                'message': 'Nenhuma UG encontrada',
+                'unidades_gestoras': []
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Erro ao buscar UGs: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
 @despesa_orcamentaria_bp.route('/api/consultar', methods=['POST'])
 def api_consultar():
     """
@@ -116,7 +167,7 @@ def api_obter_dados():
             }), 404
         
         # Filtrar por UG se necessário
-        if coug:
+        if coug and coug != 'CONSOLIDADO':
             df = despesa_service.obter_dados_por_ug(df, coug)
         
         # Paginar dados
@@ -171,16 +222,14 @@ def api_resumo():
 def api_filtros():
     """Endpoint para obter filtros disponíveis"""
     try:
-        # Executar consulta (usando cache)
-        df = despesa_service.executar_consulta()
+        # Tentar obter filtros (incluindo UGs do banco)
+        filtros = despesa_service.obter_filtros_disponiveis()
         
-        if df is None or df.empty:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado disponível'
-            }), 404
-        
-        filtros = despesa_service.obter_filtros_disponiveis(df)
+        # Se não conseguiu UGs, tentar do DataFrame
+        if not filtros.get('unidades_gestoras'):
+            df = despesa_service.executar_consulta()
+            if df is not None and not df.empty:
+                filtros = despesa_service.obter_filtros_disponiveis(df)
         
         return jsonify({
             'success': True,
@@ -202,13 +251,15 @@ def api_exportar():
     Body JSON:
     {
         "formato": "excel" ou "csv",
-        "nome_arquivo": "opcional"
+        "nome_arquivo": "opcional",
+        "ug": "codigo_ug" (opcional)
     }
     """
     try:
         data = request.get_json()
         formato = data.get('formato', 'excel')
         nome_arquivo = data.get('nome_arquivo', None)
+        coug = data.get('ug', None)
         
         # Executar consulta (usando cache)
         df = despesa_service.executar_consulta()
@@ -218,6 +269,12 @@ def api_exportar():
                 'success': False,
                 'message': 'Nenhum dado para exportar'
             }), 404
+        
+        # Filtrar por UG se especificado
+        if coug and coug != 'CONSOLIDADO':
+            df = despesa_service.obter_dados_por_ug(df, coug)
+            if nome_arquivo and coug not in nome_arquivo:
+                nome_arquivo = f"{nome_arquivo}_UG_{coug}"
         
         # Exportar
         filepath = despesa_service.exportar_dados(df, formato, nome_arquivo)
