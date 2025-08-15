@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de Balanço Geral do Distrito Federal - Acompanhamento da Despesa Orçamentária">
     <title>Despesa Orçamentária - Balanço Geral DF</title>
     
     <!-- Bootstrap CSS -->
@@ -16,7 +17,7 @@
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="text-center">
-            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+            <div class="spinner-border text-light" role="status">
                 <span class="visually-hidden">Carregando...</span>
             </div>
             <div class="text-light mt-3">Processando dados...</div>
@@ -35,7 +36,9 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/"><i class="fas fa-home"></i> Início</a>
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home"></i> Início
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link active" href="/despesa-orcamentaria">
@@ -60,8 +63,13 @@
     <!-- Dashboard Header -->
     <div class="dashboard-header">
         <div class="container">
-            <h1><i class="fas fa-money-bill-wave"></i> Despesa Orçamentária</h1>
-            <p class="mb-0">Acompanhamento da execução orçamentária das despesas do GDF</p>
+            <h1>
+                <i class="fas fa-money-bill-wave"></i> 
+                Despesa Orçamentária
+            </h1>
+            <p class="mb-0">
+                Acompanhamento da execução orçamentária das despesas do Governo do Distrito Federal
+            </p>
         </div>
     </div>
 
@@ -69,19 +77,22 @@
     <div class="container">
         <!-- Filter Section -->
         <div class="filter-card">
-            <h5 class="mb-4"><i class="fas fa-filter"></i> Filtros de Consulta</h5>
-            <div class="row">
-                <div class="col-md-4">
-                    <label class="form-label">Exercício</label>
+            <h5>
+                <i class="fas fa-filter"></i> 
+                Filtros de Consulta
+            </h5>
+            <div class="row align-items-end">
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <label for="exercicio" class="form-label">Exercício</label>
                     <select class="form-select" id="exercicio">
                         <option value="2023">2023</option>
                         <option value="2024">2024</option>
-                        <option value="2025">2025</option>
+                        <option value="2025" selected>2025</option>
                         <option value="2026">2026</option>
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Mês</label>
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <label for="mes" class="form-label">Mês de Referência</label>
                     <select class="form-select" id="mes">
                         <option value="1">Janeiro</option>
                         <option value="2">Fevereiro</option>
@@ -98,9 +109,9 @@
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">&nbsp;</label>
                     <button class="btn btn-primary w-100" onclick="consultarDados()">
-                        <i class="fas fa-search"></i> Consultar
+                        <i class="fas fa-search"></i> 
+                        Consultar Dados
                     </button>
                 </div>
             </div>
@@ -108,47 +119,59 @@
 
         <!-- Summary Cards -->
         <div class="row" id="summaryCards">
-            <div class="col-md-3">
-                <div class="summary-card">
-                    <div class="card-value" id="totalRegistros">-</div>
-                    <div class="card-label">Total de Registros</div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="summary-card card-registros">
+                    <div>
+                        <div class="card-value loading" id="totalRegistros">...</div>
+                        <div class="card-label">Total de Registros</div>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="summary-card">
-                    <div class="card-value" id="dotacaoInicial">R$ 0,00</div>
-                    <div class="card-label">Dotação Inicial</div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="summary-card card-dotacao">
+                    <div>
+                        <div class="card-value loading" id="dotacaoInicial">...</div>
+                        <div class="card-label">Dotação Inicial</div>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="summary-card">
-                    <div class="card-value" id="despesaEmpenhada">R$ 0,00</div>
-                    <div class="card-label">Despesa Empenhada</div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="summary-card card-empenhada">
+                    <div>
+                        <div class="card-value loading" id="despesaEmpenhada">...</div>
+                        <div class="card-label">Despesa Empenhada</div>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="summary-card">
-                    <div class="card-value" id="despesaPaga">R$ 0,00</div>
-                    <div class="card-label">Despesa Paga</div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="summary-card card-paga">
+                    <div>
+                        <div class="card-value loading" id="despesaPaga">...</div>
+                        <div class="card-label">Despesa Paga</div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Actions Bar -->
         <div class="row mb-3">
-            <div class="col-md-12">
+            <div class="col-12">
                 <div class="btn-group" role="group">
                     <button class="btn btn-success" onclick="exportarDados('excel')">
-                        <i class="fas fa-file-excel"></i> Exportar Excel
+                        <i class="fas fa-file-excel"></i> 
+                        Exportar Excel
                     </button>
                     <button class="btn btn-info" onclick="exportarDados('csv')">
-                        <i class="fas fa-file-csv"></i> Exportar CSV
+                        <i class="fas fa-file-csv"></i> 
+                        Exportar CSV
                     </button>
                     <button class="btn btn-warning" onclick="limparCache()">
-                        <i class="fas fa-sync"></i> Limpar Cache
+                        <i class="fas fa-sync-alt"></i> 
+                        Limpar Cache
                     </button>
                     <button class="btn btn-secondary" onclick="window.location.href='/despesa-orcamentaria/dashboard'">
-                        <i class="fas fa-chart-bar"></i> Ver Dashboard
+                        <i class="fas fa-chart-bar"></i> 
+                        Ver Dashboard
                     </button>
                 </div>
             </div>
@@ -156,45 +179,127 @@
 
         <!-- Data Table - DEMONSTRATIVO -->
         <div class="data-table-container">
-            <h5 class="mb-4"><i class="fas fa-table"></i> Demonstrativo da Despesa Orçamentária</h5>
+            <h5>
+                <i class="fas fa-table"></i> 
+                Demonstrativo da Despesa Orçamentária
+            </h5>
             <div class="table-responsive">
-                <table class="table table-bordered" id="tabelaDemonstrativo">
-                    <thead class="table-dark">
+                <table class="table table-bordered table-hover" id="tabelaDemonstrativo">
+                    <thead>
                         <tr>
-                            <th style="width: 30%;">DESPESAS ORÇAMENTÁRIAS</th>
-                            <th class="text-center">DOTAÇÃO<br/>INICIAL<br/>(a)</th>
-                            <th class="text-center">DOTAÇÃO<br/>ATUALIZADA<br/>(b)</th>
-                            <th class="text-center">DESPESAS<br/>EMPENHADAS<br/>(c)</th>
-                            <th class="text-center">DESPESAS<br/>LIQUIDADAS<br/>(d)</th>
-                            <th class="text-center">DESPESAS<br/>PAGAS<br/>(e)</th>
-                            <th class="text-center">SALDO DA<br/>DOTAÇÃO<br/>(f) = (b - c)</th>
+                            <th>DESPESAS ORÇAMENTÁRIAS</th>
+                            <th class="text-center">
+                                DOTAÇÃO<br/>INICIAL<br/>
+                                <small>(a)</small>
+                            </th>
+                            <th class="text-center">
+                                DOTAÇÃO<br/>ATUALIZADA<br/>
+                                <small>(b)</small>
+                            </th>
+                            <th class="text-center">
+                                DESPESAS<br/>EMPENHADAS<br/>
+                                <small>(c)</small>
+                            </th>
+                            <th class="text-center">
+                                DESPESAS<br/>LIQUIDADAS<br/>
+                                <small>(d)</small>
+                            </th>
+                            <th class="text-center">
+                                DESPESAS<br/>PAGAS<br/>
+                                <small>(e)</small>
+                            </th>
+                            <th class="text-center">
+                                SALDO DA<br/>DOTAÇÃO<br/>
+                                <small>(f) = (b - c)</small>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="tabelaCorpo">
                         <tr>
-                            <td colspan="7" class="text-center">
-                                <div class="spinner-border text-primary" role="status">
+                            <td colspan="7" class="text-center py-5">
+                                <div class="spinner-border text-primary mb-3" role="status">
                                     <span class="visually-hidden">Carregando...</span>
                                 </div>
-                                <p class="mt-2">Carregando dados do demonstrativo...</p>
+                                <p class="text-muted">
+                                    <i class="fas fa-hourglass-half"></i> 
+                                    Carregando dados do demonstrativo...
+                                </p>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
+
+        <!-- Info Section -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Informação:</strong> 
+                    Os dados são atualizados diariamente e representam a execução orçamentária até o mês selecionado.
+                    O cache é utilizado para melhorar a performance das consultas.
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Footer -->
-    <footer class="mt-5 py-3 bg-dark text-white text-center">
-        <div class="container">
-            <p class="mb-0">&copy; 2025 Governo do Distrito Federal - Sistema de Balanço Geral</p>
+    <footer>
+        <div class="container text-center">
+            <p class="mb-1">
+                &copy; 2025 Governo do Distrito Federal - Sistema de Balanço Geral
+            </p>
+            <p class="mb-0">
+                <small>Transparência e controle na gestão dos recursos públicos</small>
+            </p>
         </div>
     </footer>
+
+    <!-- Botão de Tela Cheia -->
+    <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Modo Tela Cheia">
+        <i class="fas fa-expand" id="fullscreenIcon"></i>
+    </button>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/despesa_orcamentaria.js') }}"></script>
+    
+    <!-- Script para Modo Tela Cheia -->
+    <script>
+        function toggleFullscreen() {
+            const body = document.body;
+            const icon = document.getElementById('fullscreenIcon');
+            
+            if (body.classList.contains('fullscreen-mode')) {
+                // Sair do modo tela cheia
+                body.classList.remove('fullscreen-mode');
+                icon.classList.remove('fa-compress');
+                icon.classList.add('fa-expand');
+            } else {
+                // Entrar no modo tela cheia
+                body.classList.add('fullscreen-mode');
+                icon.classList.remove('fa-expand');
+                icon.classList.add('fa-compress');
+                
+                // Scroll para o topo
+                window.scrollTo(0, 0);
+            }
+        }
+        
+        // Atalho de teclado (F9)
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F9') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+        });
+        
+        // Log de inicialização
+        console.log('Página carregada:', new Date().toLocaleString('pt-BR'));
+        console.log('Versão do Sistema: 1.0.0');
+        console.log('Dica: Pressione F9 para modo tela cheia');
+    </script>
 </body>
 </html>

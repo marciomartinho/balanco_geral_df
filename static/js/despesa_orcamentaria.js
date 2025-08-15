@@ -1,16 +1,17 @@
 /**
- * Sistema de Despesa Orçamentária - JavaScript
- * Versão completamente reescrita com melhor estrutura e debug
+ * Sistema de Despesa Orçamentária
+ * Versão Completa com Cards Sincronizados
+ * Sistema de Balanço Geral DF
  */
 
 // ============================================================================
-// CONFIGURAÇÃO GLOBAL E VARIÁVEIS
+// CONFIGURAÇÃO GLOBAL
 // ============================================================================
 
 const AppConfig = {
-    debug: true, // Ativar logs detalhados
+    debug: true,
     apiBaseUrl: '/despesa-orcamentaria/api',
-    maxRegistros: 500000, // Máximo de registros para buscar
+    maxRegistros: 500000,
     formatoMoeda: {
         style: 'currency',
         currency: 'BRL',
@@ -20,20 +21,45 @@ const AppConfig = {
 };
 
 const AppState = {
-    dadosCompletos: null,      // Todos os dados do servidor
-    dadosFiltrados: null,       // Dados após aplicar filtros
-    filtrosAtuais: null,        // Filtros aplicados
-    cacheInfo: null,            // Informações sobre o cache
-    ultimaConsulta: null        // Timestamp da última consulta
+    dadosCompletos: null,
+    dadosFiltrados: null,
+    filtrosAtuais: null,
+    totaisCalculados: null,
+    ultimaConsulta: null
 };
 
 // ============================================================================
-// UTILITÁRIOS DE FORMATAÇÃO
+// FORMATADORES
 // ============================================================================
 
 const Formatadores = {
     /**
-     * Formata valor como moeda brasileira
+     * Formata valor como moeda brasileira compacta (para cards)
+     */
+    moedaCompacta: function(valor) {
+        if (valor === null || valor === undefined || isNaN(valor)) {
+            return 'R$ 0,00';
+        }
+        
+        const num = parseFloat(valor);
+        const absNum = Math.abs(num);
+        
+        if (absNum >= 1000000000) {
+            const bilhoes = (num / 1000000000).toFixed(2);
+            return `R$ ${bilhoes.replace('.', ',')} bi`;
+        } else if (absNum >= 1000000) {
+            const milhoes = (num / 1000000).toFixed(2);
+            return `R$ ${milhoes.replace('.', ',')} mi`;
+        } else if (absNum >= 1000) {
+            const milhares = (num / 1000).toFixed(2);
+            return `R$ ${milhares.replace('.', ',')} mil`;
+        } else {
+            return new Intl.NumberFormat('pt-BR', AppConfig.formatoMoeda).format(num);
+        }
+    },
+
+    /**
+     * Formata valor como moeda brasileira completa (para tabela)
      */
     moeda: function(valor) {
         if (valor === null || valor === undefined || isNaN(valor)) {
@@ -78,7 +104,7 @@ const Formatadores = {
 
 const UI = {
     /**
-     * Mostra/esconde loading
+     * Mostra/esconde loading overlay
      */
     toggleLoading: function(show, mensagem = 'Processando dados...') {
         const overlay = document.getElementById('loadingOverlay');
@@ -94,45 +120,56 @@ const UI = {
     },
 
     /**
-     * Mostra mensagem de erro
+     * Mostra loading nos cards
      */
-    mostrarErro: function(mensagem) {
-        console.error('ERRO:', mensagem);
-        alert('Erro: ' + mensagem);
-    },
-
-    /**
-     * Mostra mensagem de sucesso
-     */
-    mostrarSucesso: function(mensagem) {
-        console.log('SUCESSO:', mensagem);
-        // Poderia mostrar um toast ou notificação
-    },
-
-    /**
-     * Atualiza cards de resumo
-     */
-    atualizarCards: function(resumo) {
-        if (!resumo) return;
-
-        const elementos = {
-            'totalRegistros': Formatadores.numero(resumo.total_registros || 0),
-            'dotacaoInicial': Formatadores.moeda(resumo.totais?.DOTACAO_INICIAL || 0),
-            'despesaEmpenhada': Formatadores.moeda(resumo.totais?.DESPESA_EMPENHADA || 0),
-            'despesaPaga': Formatadores.moeda(resumo.totais?.DESPESA_PAGA || 0)
-        };
-
-        for (const [id, valor] of Object.entries(elementos)) {
+    mostrarLoadingCards: function() {
+        const cards = ['totalRegistros', 'dotacaoInicial', 'despesaEmpenhada', 'despesaPaga'];
+        cards.forEach(id => {
             const elemento = document.getElementById(id);
             if (elemento) {
-                elemento.textContent = valor;
+                elemento.classList.add('loading');
+                elemento.textContent = '...';
             }
-        }
+        });
+    },
 
-        // Mostrar informações do cache
-        if (resumo.usando_cache) {
-            console.log('📦 Usando cache do dia');
-        }
+    /**
+     * Remove loading dos cards
+     */
+    removerLoadingCards: function() {
+        const cards = ['totalRegistros', 'dotacaoInicial', 'despesaEmpenhada', 'despesaPaga'];
+        cards.forEach(id => {
+            const elemento = document.getElementById(id);
+            if (elemento) {
+                elemento.classList.remove('loading');
+            }
+        });
+    },
+
+    /**
+     * Atualiza um card específico com animação
+     */
+    atualizarValorCard: function(id, valor) {
+        const elemento = document.getElementById(id);
+        if (!elemento) return;
+        
+        elemento.style.transition = 'opacity 0.3s';
+        elemento.style.opacity = '0.5';
+        
+        setTimeout(() => {
+            elemento.textContent = valor;
+            elemento.style.opacity = '1';
+        }, 150);
+    },
+
+    /**
+     * Mostra cards vazios
+     */
+    mostrarCardsVazios: function() {
+        this.atualizarValorCard('totalRegistros', '0');
+        this.atualizarValorCard('dotacaoInicial', 'R$ 0,00');
+        this.atualizarValorCard('despesaEmpenhada', 'R$ 0,00');
+        this.atualizarValorCard('despesaPaga', 'R$ 0,00');
     },
 
     /**
@@ -147,7 +184,6 @@ const UI = {
         const selectMes = document.getElementById('mes');
 
         if (selectExercicio) {
-            // Adicionar ano atual se não existir
             if (![...selectExercicio.options].some(opt => opt.value == anoAtual)) {
                 selectExercicio.add(new Option(anoAtual, anoAtual));
             }
@@ -158,9 +194,24 @@ const UI = {
             selectMes.value = mesAtual;
         }
 
-        console.log(`📅 Filtros configurados: Exercício ${anoAtual}, Mês ${Formatadores.nomeMes(mesAtual)}`);
+        console.log(`📅 Filtros padrão: ${anoAtual} / ${Formatadores.nomeMes(mesAtual)}`);
         
         return { exercicio: anoAtual, mes: mesAtual };
+    },
+
+    /**
+     * Mostra mensagem de erro
+     */
+    mostrarErro: function(mensagem) {
+        console.error('❌ ERRO:', mensagem);
+        alert('Erro: ' + mensagem);
+    },
+
+    /**
+     * Mostra mensagem de sucesso
+     */
+    mostrarSucesso: function(mensagem) {
+        console.log('✅ SUCESSO:', mensagem);
     }
 };
 
@@ -174,7 +225,7 @@ const DadosManager = {
      */
     buscarDados: async function() {
         try {
-            console.log('🔍 Buscando todos os dados do servidor...');
+            console.log('🔍 Buscando dados do servidor...');
             
             const response = await fetch(`${AppConfig.apiBaseUrl}/dados?pagina=1&registros=${AppConfig.maxRegistros}`);
             const result = await response.json();
@@ -185,12 +236,9 @@ const DadosManager = {
 
             console.log(`✅ ${result.dados.length} registros recebidos do servidor`);
             
-            // Salvar dados completos
             AppState.dadosCompletos = result.dados;
             
-            // Verificar estrutura dos dados
             if (AppConfig.debug && result.dados.length > 0) {
-                console.log('📋 Estrutura dos dados:');
                 console.log('Primeiro registro:', result.dados[0]);
                 console.log('Campos disponíveis:', Object.keys(result.dados[0]));
             }
@@ -204,7 +252,7 @@ const DadosManager = {
     },
 
     /**
-     * Aplica filtros aos dados
+     * Aplica filtros aos dados - CORRIGIDO para sincronizar com tabela
      */
     filtrarDados: function(dados, filtros) {
         if (!dados || dados.length === 0) return [];
@@ -212,22 +260,25 @@ const DadosManager = {
         console.log('🔍 Aplicando filtros:', filtros);
         const inicio = Date.now();
 
+        // IMPORTANTE: Filtrar APENAS pelo exercício selecionado (não o anterior)
         let dadosFiltrados = dados.filter(row => {
             const exercicio = parseInt(row.COEXERCICIO);
             const mes = parseInt(row.INMES);
-
-            // Aplicar filtros
+            
+            // Filtrar pelo exercício exato e mês limite
             const exercicioValido = exercicio === filtros.exercicio;
             const mesValido = mes <= filtros.mes;
-
+            
             return exercicioValido && mesValido;
         });
 
         const tempo = Date.now() - inicio;
         console.log(`✅ Filtros aplicados em ${tempo}ms`);
-        console.log(`📊 ${dadosFiltrados.length} de ${dados.length} registros após filtro`);
+        console.log(`📊 Resultado:`);
+        console.log(`   - Exercício ${filtros.exercicio}: ${dadosFiltrados.length} registros`);
+        console.log(`   - Até mês ${filtros.mes} (${Formatadores.nomeMes(filtros.mes)})`);
+        console.log(`   - Total: ${dadosFiltrados.length} de ${dados.length} registros`);
 
-        // Salvar dados filtrados
         AppState.dadosFiltrados = dadosFiltrados;
         AppState.filtrosAtuais = filtros;
 
@@ -235,31 +286,24 @@ const DadosManager = {
     },
 
     /**
-     * Calcula totais dos dados
+     * Calcula totais dos dados filtrados (igual à tabela)
      */
     calcularTotais: function(dados) {
-        if (!dados || dados.length === 0) {
-            return {
-                dotacao_inicial: 0,
-                dotacao_adicional: 0,
-                cancelamento_dotacao: 0,
-                cancel_remaneja_dotacao: 0,
-                despesa_empenhada: 0,
-                despesa_liquidada: 0,
-                despesa_paga: 0
-            };
-        }
-
         const totais = {
             dotacao_inicial: 0,
             dotacao_adicional: 0,
             cancelamento_dotacao: 0,
             cancel_remaneja_dotacao: 0,
+            dotacao_atualizada: 0,
             despesa_empenhada: 0,
             despesa_liquidada: 0,
-            despesa_paga: 0
+            despesa_paga: 0,
+            saldo_dotacao: 0
         };
-
+        
+        if (!dados || dados.length === 0) return totais;
+        
+        // Calcular exatamente como a tabela
         dados.forEach(row => {
             totais.dotacao_inicial += parseFloat(row.DOTACAO_INICIAL || 0);
             totais.dotacao_adicional += parseFloat(row.DOTACAO_ADICIONAL || 0);
@@ -269,11 +313,16 @@ const DadosManager = {
             totais.despesa_liquidada += parseFloat(row.DESPESA_LIQUIDADA || 0);
             totais.despesa_paga += parseFloat(row.DESPESA_PAGA || 0);
         });
-
-        if (AppConfig.debug) {
-            console.log('💰 Totais calculados:', totais);
-        }
-
+        
+        // Calcular dotação atualizada
+        totais.dotacao_atualizada = totais.dotacao_inicial + 
+                                    totais.dotacao_adicional + 
+                                    totais.cancelamento_dotacao + 
+                                    totais.cancel_remaneja_dotacao;
+        
+        // Calcular saldo
+        totais.saldo_dotacao = totais.dotacao_atualizada - totais.despesa_empenhada;
+        
         return totais;
     }
 };
@@ -283,9 +332,6 @@ const DadosManager = {
 // ============================================================================
 
 const TabelaRenderer = {
-    /**
-     * Estrutura das categorias de despesa
-     */
     estruturaCategorias: {
         '3': {
             nome: 'DESPESAS CORRENTES',
@@ -309,9 +355,6 @@ const TabelaRenderer = {
         }
     },
 
-    /**
-     * Renderiza a tabela demonstrativo
-     */
     renderizar: function(dados) {
         console.log('📊 Renderizando tabela demonstrativo...');
         
@@ -321,26 +364,26 @@ const TabelaRenderer = {
             return;
         }
 
-        // Limpar tabela
         tbody.innerHTML = '';
 
         if (!dados || dados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum dado disponível</td></tr>';
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <i class="fas fa-inbox text-muted"></i>
+                        <p class="text-muted mt-2">Nenhum dado disponível para o período selecionado</p>
+                    </td>
+                </tr>`;
             return;
         }
 
-        // Agregar dados por categoria e grupo
         const agregados = this.agregarDados(dados);
+        const totalGeral = this.renderizarLinhas(tbody, agregados);
         
-        // Renderizar linhas
-        this.renderizarLinhas(tbody, agregados);
-
-        console.log('✅ Tabela renderizada com sucesso');
+        // Retornar o total geral para sincronizar com os cards
+        return totalGeral;
     },
 
-    /**
-     * Agrega dados por categoria e grupo
-     */
     agregarDados: function(dados) {
         const agregados = {};
 
@@ -360,32 +403,23 @@ const TabelaRenderer = {
             });
         });
 
-        // Processar cada registro
+        // Processar dados
         dados.forEach(row => {
-            const catId = String(row.CATEGORIA || row.COCATEGORIA || '0');
-            const grupoId = String(row.GRUPO || row.COGRUPO || '0');
+            const catId = String(row.CATEGORIA || '0');
+            const grupoId = String(row.GRUPO || '0');
 
             if (agregados[catId]) {
-                // Somar à categoria
                 this.somarValores(agregados[catId].valores, row);
 
-                // Somar ao grupo se existir
                 if (agregados[catId].grupos[grupoId]) {
                     this.somarValores(agregados[catId].grupos[grupoId].valores, row);
                 }
             }
         });
 
-        if (AppConfig.debug) {
-            console.log('📊 Dados agregados:', agregados);
-        }
-
         return agregados;
     },
 
-    /**
-     * Cria objeto de valores zerados
-     */
     criarObjetoValores: function() {
         return {
             dotacao_inicial: 0,
@@ -398,9 +432,6 @@ const TabelaRenderer = {
         };
     },
 
-    /**
-     * Soma valores de um registro ao agregado
-     */
     somarValores: function(agregado, row) {
         agregado.dotacao_inicial += parseFloat(row.DOTACAO_INICIAL || 0);
         agregado.dotacao_adicional += parseFloat(row.DOTACAO_ADICIONAL || 0);
@@ -411,30 +442,21 @@ const TabelaRenderer = {
         agregado.despesa_paga += parseFloat(row.DESPESA_PAGA || 0);
     },
 
-    /**
-     * Renderiza as linhas da tabela
-     */
     renderizarLinhas: function(tbody, agregados) {
         const totalGeral = this.criarObjetoValores();
 
-        // Ordem de renderização
+        // Renderizar categorias
         ['3', '4', '9'].forEach(catId => {
             const categoria = agregados[catId];
             if (!categoria) return;
 
             const valores = categoria.valores;
-
-            // Pular categorias vazias
             if (this.isValoresVazios(valores)) return;
 
-            // Calcular dotação atualizada e saldo
             const dotacaoAtualizada = this.calcularDotacaoAtualizada(valores);
             const saldo = dotacaoAtualizada - valores.despesa_empenhada;
 
-            // Adicionar linha da categoria
             tbody.appendChild(this.criarLinhaCategoria(categoria.nome, valores, dotacaoAtualizada, saldo));
-
-            // Somar ao total geral
             this.somarAoTotal(totalGeral, valores);
 
             // Renderizar grupos
@@ -456,11 +478,18 @@ const TabelaRenderer = {
         const dotacaoAtualizadaTotal = this.calcularDotacaoAtualizada(totalGeral);
         const saldoTotal = dotacaoAtualizadaTotal - totalGeral.despesa_empenhada;
         tbody.appendChild(this.criarLinhaTotal(totalGeral, dotacaoAtualizadaTotal, saldoTotal));
+        
+        // Retornar totais para sincronização
+        return {
+            dotacao_inicial: totalGeral.dotacao_inicial,
+            dotacao_atualizada: dotacaoAtualizadaTotal,
+            despesa_empenhada: totalGeral.despesa_empenhada,
+            despesa_liquidada: totalGeral.despesa_liquidada,
+            despesa_paga: totalGeral.despesa_paga,
+            saldo: saldoTotal
+        };
     },
 
-    /**
-     * Verifica se valores estão vazios
-     */
     isValoresVazios: function(valores) {
         return valores.dotacao_inicial === 0 && 
                valores.despesa_empenhada === 0 &&
@@ -468,9 +497,6 @@ const TabelaRenderer = {
                valores.despesa_paga === 0;
     },
 
-    /**
-     * Calcula dotação atualizada
-     */
     calcularDotacaoAtualizada: function(valores) {
         return valores.dotacao_inicial + 
                valores.dotacao_adicional + 
@@ -478,9 +504,6 @@ const TabelaRenderer = {
                valores.cancel_remaneja_dotacao;
     },
 
-    /**
-     * Soma valores ao total geral
-     */
     somarAoTotal: function(total, valores) {
         total.dotacao_inicial += valores.dotacao_inicial;
         total.dotacao_adicional += valores.dotacao_adicional;
@@ -491,9 +514,6 @@ const TabelaRenderer = {
         total.despesa_paga += valores.despesa_paga;
     },
 
-    /**
-     * Cria linha de categoria
-     */
     criarLinhaCategoria: function(nome, valores, dotacaoAtualizada, saldo) {
         const tr = document.createElement('tr');
         tr.className = 'categoria-row';
@@ -509,9 +529,6 @@ const TabelaRenderer = {
         return tr;
     },
 
-    /**
-     * Cria linha de grupo
-     */
     criarLinhaGrupo: function(nome, valores, dotacaoAtualizada, saldo) {
         const tr = document.createElement('tr');
         tr.className = 'grupo-row';
@@ -527,12 +544,9 @@ const TabelaRenderer = {
         return tr;
     },
 
-    /**
-     * Cria linha de total
-     */
     criarLinhaTotal: function(valores, dotacaoAtualizada, saldo) {
         const tr = document.createElement('tr');
-        tr.className = 'total-row table-dark';
+        tr.className = 'total-row';
         tr.innerHTML = `
             <td><strong>TOTAL GERAL</strong></td>
             <td class="text-end"><strong>${Formatadores.moeda(valores.dotacao_inicial)}</strong></td>
@@ -549,89 +563,96 @@ const TabelaRenderer = {
 };
 
 // ============================================================================
-// FUNÇÕES PRINCIPAIS DA APLICAÇÃO
+// FUNÇÃO PRINCIPAL DE CONSULTA - CORRIGIDA PARA SINCRONIZAR
 // ============================================================================
 
-/**
- * Consulta dados e atualiza interface
- */
 async function consultarDados() {
     console.log('========== INICIANDO CONSULTA ==========');
     console.log('Timestamp:', Formatadores.dataHora());
 
     try {
+        // 1. Preparar UI
+        UI.mostrarLoadingCards();
         UI.toggleLoading(true, 'Consultando dados...');
 
-        // Obter valores dos filtros
+        // 2. Obter filtros
         const exercicio = parseInt(document.getElementById('exercicio').value);
         const mes = parseInt(document.getElementById('mes').value);
 
-        console.log(`📅 Parâmetros: Exercício ${exercicio}, Mês ${mes} (${Formatadores.nomeMes(mes)})`);
+        console.log(`📅 Filtros selecionados:`);
+        console.log(`   - Exercício: ${exercicio}`);
+        console.log(`   - Mês: ${mes} (${Formatadores.nomeMes(mes)})`);
 
-        // 1. Buscar resumo do servidor
-        UI.toggleLoading(true, 'Buscando resumo...');
-        const resumoResponse = await fetch(`${AppConfig.apiBaseUrl}/consultar`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                exercicio_inicial: exercicio - 1,
-                exercicio_final: exercicio,
-                mes_limite: mes,
-                use_cache: true
-            })
-        });
-
-        const resumoResult = await resumoResponse.json();
-        if (resumoResult.success) {
-            UI.atualizarCards(resumoResult.resumo);
-        }
-
-        // 2. Buscar dados completos
-        UI.toggleLoading(true, 'Carregando dados completos...');
+        // 3. Buscar dados completos (usar cache se já carregado)
+        UI.toggleLoading(true, 'Carregando dados...');
         
-        // Usar dados em cache se já carregados
         let dados = AppState.dadosCompletos;
         if (!dados) {
             dados = await DadosManager.buscarDados();
         }
 
-        // 3. Aplicar filtros
+        // 4. IMPORTANTE: Filtrar dados APENAS pelo exercício e mês selecionados
         UI.toggleLoading(true, 'Aplicando filtros...');
         const dadosFiltrados = DadosManager.filtrarDados(dados, { exercicio, mes });
 
-        // 4. Renderizar tabela
-        UI.toggleLoading(true, 'Renderizando tabela...');
-        TabelaRenderer.renderizar(dadosFiltrados);
+        // 5. Calcular totais dos dados filtrados (mesmos valores que vão para a tabela)
+        const totais = DadosManager.calcularTotais(dadosFiltrados);
+        AppState.totaisCalculados = totais;
+        
+        // 6. Atualizar cards com os MESMOS valores que vão aparecer na tabela
+        UI.removerLoadingCards();
+        UI.atualizarValorCard('totalRegistros', Formatadores.numero(dadosFiltrados.length));
+        UI.atualizarValorCard('dotacaoInicial', Formatadores.moedaCompacta(totais.dotacao_inicial));
+        UI.atualizarValorCard('despesaEmpenhada', Formatadores.moedaCompacta(totais.despesa_empenhada));
+        UI.atualizarValorCard('despesaPaga', Formatadores.moedaCompacta(totais.despesa_paga));
 
-        // 5. Debug - Verificar totais
+        // 7. Renderizar tabela
+        UI.toggleLoading(true, 'Montando demonstrativo...');
+        const totaisTabela = TabelaRenderer.renderizar(dadosFiltrados);
+
+        // 8. Debug - Verificar se valores batem
         if (AppConfig.debug) {
-            const totais = DadosManager.calcularTotais(dadosFiltrados);
-            console.log('===== VERIFICAÇÃO DE TOTAIS =====');
-            console.log('Total de registros filtrados:', dadosFiltrados.length);
-            console.log('Dotação Inicial:', Formatadores.moeda(totais.dotacao_inicial));
-            console.log('Despesa Empenhada:', Formatadores.moeda(totais.despesa_empenhada));
-            console.log('Despesa Liquidada:', Formatadores.moeda(totais.despesa_liquidada));
-            console.log('Despesa Paga:', Formatadores.moeda(totais.despesa_paga));
-            console.log('==================================');
+            console.log('===== VERIFICAÇÃO DE SINCRONIZAÇÃO =====');
+            console.log('Total de registros:', dadosFiltrados.length);
+            console.log('Valores calculados:');
+            console.log('   Cards:', {
+                dotacao: Formatadores.moedaCompacta(totais.dotacao_inicial),
+                empenhada: Formatadores.moedaCompacta(totais.despesa_empenhada),
+                paga: Formatadores.moedaCompacta(totais.despesa_paga)
+            });
+            console.log('   Tabela:', {
+                dotacao: Formatadores.moedaCompacta(totaisTabela.dotacao_inicial),
+                empenhada: Formatadores.moedaCompacta(totaisTabela.despesa_empenhada),
+                paga: Formatadores.moedaCompacta(totaisTabela.despesa_paga)
+            });
+            
+            const sincronizado = Math.abs(totais.dotacao_inicial - totaisTabela.dotacao_inicial) < 0.01 &&
+                                Math.abs(totais.despesa_empenhada - totaisTabela.despesa_empenhada) < 0.01 &&
+                                Math.abs(totais.despesa_paga - totaisTabela.despesa_paga) < 0.01;
+            
+            console.log(`Status: ${sincronizado ? '✅ SINCRONIZADO' : '❌ DESSINCRONIZADO'}`);
+            console.log('=========================================');
         }
 
-        // Salvar timestamp
+        // 9. Finalizar
         AppState.ultimaConsulta = new Date();
-
-        UI.mostrarSucesso('Consulta realizada com sucesso!');
+        UI.mostrarSucesso('Dados carregados com sucesso!');
 
     } catch (error) {
         console.error('❌ Erro na consulta:', error);
         UI.mostrarErro(error.message || 'Erro ao consultar dados');
+        UI.mostrarCardsVazios();
     } finally {
         UI.toggleLoading(false);
+        UI.removerLoadingCards();
         console.log('========== CONSULTA FINALIZADA ==========');
     }
 }
 
-/**
- * Exporta dados para arquivo
- */
+// ============================================================================
+// FUNÇÕES DE EXPORTAÇÃO
+// ============================================================================
+
 async function exportarDados(formato) {
     try {
         UI.toggleLoading(true, `Exportando para ${formato.toUpperCase()}...`);
@@ -647,7 +668,7 @@ async function exportarDados(formato) {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `despesa_orcamentaria_${formato}.${formato === 'excel' ? 'xlsx' : 'csv'}`;
+            a.download = `despesa_orcamentaria_${new Date().toISOString().slice(0,10)}.${formato === 'excel' ? 'xlsx' : 'csv'}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -664,9 +685,6 @@ async function exportarDados(formato) {
     }
 }
 
-/**
- * Limpa o cache
- */
 async function limparCache() {
     if (!confirm('Deseja realmente limpar o cache? A próxima consulta será mais demorada.')) {
         return;
@@ -681,13 +699,11 @@ async function limparCache() {
 
         const result = await response.json();
         if (result.success) {
-            // Limpar dados em memória também
             AppState.dadosCompletos = null;
             AppState.dadosFiltrados = null;
+            AppState.totaisCalculados = null;
             
             UI.mostrarSucesso('Cache limpo com sucesso!');
-            
-            // Recarregar dados
             await consultarDados();
         }
     } catch (error) {
@@ -697,12 +713,16 @@ async function limparCache() {
     }
 }
 
+// ============================================================================
+// FUNÇÕES DE DEBUG
+// ============================================================================
+
 /**
- * Função de debug - pode ser chamada do console
+ * Função de debug principal
  */
 window.debugDespesa = function() {
     console.log('===== DEBUG - ESTADO DA APLICAÇÃO =====');
-    console.log('Config:', AppConfig);
+    console.log('Configuração:', AppConfig);
     console.log('Estado:', {
         totalDadosCompletos: AppState.dadosCompletos?.length || 0,
         totalDadosFiltrados: AppState.dadosFiltrados?.length || 0,
@@ -710,17 +730,80 @@ window.debugDespesa = function() {
         ultimaConsulta: AppState.ultimaConsulta
     });
     
-    if (AppState.dadosFiltrados && AppState.dadosFiltrados.length > 0) {
-        const totais = DadosManager.calcularTotais(AppState.dadosFiltrados);
-        console.log('Totais dos dados filtrados:', totais);
-        console.log('Formatado:', {
-            dotacao_inicial: Formatadores.moeda(totais.dotacao_inicial),
-            despesa_empenhada: Formatadores.moeda(totais.despesa_empenhada),
-            despesa_paga: Formatadores.moeda(totais.despesa_paga)
+    if (AppState.totaisCalculados) {
+        console.log('Totais calculados:', {
+            dotacao_inicial: Formatadores.moedaCompacta(AppState.totaisCalculados.dotacao_inicial),
+            dotacao_atualizada: Formatadores.moedaCompacta(AppState.totaisCalculados.dotacao_atualizada),
+            despesa_empenhada: Formatadores.moedaCompacta(AppState.totaisCalculados.despesa_empenhada),
+            despesa_paga: Formatadores.moedaCompacta(AppState.totaisCalculados.despesa_paga),
+            saldo: Formatadores.moedaCompacta(AppState.totaisCalculados.saldo_dotacao)
         });
     }
     
+    console.log('Valores atuais nos cards:');
+    console.log('- Total Registros:', document.getElementById('totalRegistros')?.textContent);
+    console.log('- Dotação Inicial:', document.getElementById('dotacaoInicial')?.textContent);
+    console.log('- Despesa Empenhada:', document.getElementById('despesaEmpenhada')?.textContent);
+    console.log('- Despesa Paga:', document.getElementById('despesaPaga')?.textContent);
+    
     console.log('========================================');
+};
+
+/**
+ * Verifica sincronização entre cards e tabela
+ */
+window.verificarSincronizacao = function() {
+    console.log('===== VERIFICAÇÃO DE SINCRONIZAÇÃO =====');
+    
+    // Pegar valores dos cards
+    const cards = {
+        registros: document.getElementById('totalRegistros')?.textContent,
+        dotacao: document.getElementById('dotacaoInicial')?.textContent,
+        empenhada: document.getElementById('despesaEmpenhada')?.textContent,
+        paga: document.getElementById('despesaPaga')?.textContent
+    };
+    
+    // Pegar valores da tabela (última linha - TOTAL GERAL)
+    const tabela = document.querySelector('#tabelaCorpo tr.total-row');
+    if (tabela) {
+        const celulas = tabela.querySelectorAll('td');
+        const tabelaValores = {
+            dotacao: celulas[1]?.querySelector('strong')?.textContent,
+            atualizada: celulas[2]?.querySelector('strong')?.textContent,
+            empenhada: celulas[3]?.querySelector('strong')?.textContent,
+            liquidada: celulas[4]?.querySelector('strong')?.textContent,
+            paga: celulas[5]?.querySelector('strong')?.textContent,
+            saldo: celulas[6]?.querySelector('strong')?.textContent
+        };
+        
+        console.log('CARDS:', cards);
+        console.log('TABELA (Total Geral):', tabelaValores);
+        
+        // Comparar valores
+        const dotacaoIgual = cards.dotacao === Formatadores.moedaCompacta(
+            parseFloat(tabelaValores.dotacao?.replace(/[^\d,-]/g, '').replace(',', '.'))
+        );
+        const empenhadaIgual = cards.empenhada === Formatadores.moedaCompacta(
+            parseFloat(tabelaValores.empenhada?.replace(/[^\d,-]/g, '').replace(',', '.'))
+        );
+        const pagaIgual = cards.paga === Formatadores.moedaCompacta(
+            parseFloat(tabelaValores.paga?.replace(/[^\d,-]/g, '').replace(',', '.'))
+        );
+        
+        if (dotacaoIgual && empenhadaIgual && pagaIgual) {
+            console.log('✅ SINCRONIZADO: Cards e tabela mostram os mesmos valores!');
+        } else {
+            console.log('❌ DESSINCRONIZADO: Cards e tabela mostram valores diferentes!');
+            console.log('Diferenças:');
+            if (!dotacaoIgual) console.log('- Dotação Inicial diferente');
+            if (!empenhadaIgual) console.log('- Despesa Empenhada diferente');
+            if (!pagaIgual) console.log('- Despesa Paga diferente');
+        }
+    } else {
+        console.log('❌ Tabela ainda não renderizada');
+    }
+    
+    console.log('=========================================');
 };
 
 // ============================================================================
@@ -730,7 +813,7 @@ window.debugDespesa = function() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('===== APLICAÇÃO INICIADA =====');
     console.log('Timestamp:', Formatadores.dataHora());
-    console.log('Debug mode:', AppConfig.debug ? 'ON' : 'OFF');
+    console.log('Debug:', AppConfig.debug ? 'ATIVADO' : 'DESATIVADO');
     
     // Verificar elementos essenciais
     const elementosRequeridos = [
@@ -761,5 +844,8 @@ document.addEventListener('DOMContentLoaded', function() {
     consultarDados();
     
     console.log('===== INICIALIZAÇÃO COMPLETA =====');
-    console.log('💡 Dica: Use debugDespesa() no console para debug');
+    console.log('💡 Dicas de debug:');
+    console.log('   - debugDespesa() para ver estado da aplicação');
+    console.log('   - verificarSincronizacao() para verificar cards vs tabela');
+    console.log('   - consultarDados() para recarregar dados');
 });

@@ -1,76 +1,436 @@
-/* Estilos para Despesa Orçamentária */
+/* ============================================
+   Estilos para Despesa Orçamentária
+   Sistema de Balanço Geral DF
+   VERSÃO COMPLETA COM TELA CHEIA
+   ============================================ */
+
+/* ========================================
+   CONFIGURAÇÕES GERAIS
+   ======================================== */
 
 body {
     background: #f5f6fa;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
 }
+
+/* Container com largura total */
+.container {
+    max-width: 100% !important;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+@media (min-width: 1400px) {
+    .container {
+        padding-left: 30px;
+        padding-right: 30px;
+    }
+}
+
+/* ========================================
+   NAVBAR
+   ======================================== */
 
 .navbar {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 1rem 0;
 }
 
-.navbar-brand, .nav-link {
+.navbar-brand {
     color: white !important;
+    font-weight: bold;
+    font-size: 1.3rem;
 }
+
+.nav-link {
+    color: rgba(255,255,255,0.9) !important;
+    transition: all 0.3s;
+}
+
+.nav-link:hover {
+    color: white !important;
+    transform: translateY(-2px);
+}
+
+.nav-link.active {
+    color: white !important;
+    font-weight: 600;
+}
+
+/* ========================================
+   HEADER DO DASHBOARD
+   ======================================== */
 
 .dashboard-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 40px 0;
-    margin-bottom: 30px;
+    padding: 50px 0 35px;
+    margin-bottom: 25px;
+    position: relative;
+    overflow: hidden;
 }
+
+.dashboard-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+}
+
+.dashboard-header h1 {
+    font-size: 2.3rem;
+    font-weight: 300;
+    margin-bottom: 10px;
+    animation: fadeInDown 0.8s;
+}
+
+.dashboard-header p {
+    font-size: 1.1rem;
+    opacity: 0.95;
+    animation: fadeInUp 0.8s;
+}
+
+/* ========================================
+   CARD DE FILTROS
+   ======================================== */
 
 .filter-card {
     background: white;
-    border-radius: 10px;
-    padding: 25px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-    margin-bottom: 30px;
+    border-radius: 12px;
+    padding: 20px 25px;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+    margin-bottom: 25px;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.filter-card h5 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
+    font-size: 1.1rem;
+}
+
+.form-label {
+    color: #666;
+    font-weight: 500;
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-select {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 10px 15px;
+    transition: all 0.3s;
+    font-size: 1rem;
+}
+
+.form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102,126,234,0.1);
+}
+
+/* ========================================
+   CARDS DE RESUMO - LINHA ÚNICA
+   ======================================== */
+
+#summaryCards {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+#summaryCards > div {
+    flex: 1;
+    min-width: 220px;
 }
 
 .summary-card {
     background: white;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-    margin-bottom: 20px;
-    transition: transform 0.3s;
+    border-radius: 12px;
+    padding: 22px 18px;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+    min-height: 115px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
 }
 
 .summary-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    transform: translateY(-5px);
+    box-shadow: 0 5px 25px rgba(0,0,0,0.12);
 }
 
 .summary-card .card-value {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #333;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 8px;
+    line-height: 1.2;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    display: block;
+    max-width: 100%;
 }
 
 .summary-card .card-label {
-    color: #666;
-    font-size: 0.9rem;
+    color: #7f8c8d;
+    font-size: 0.82rem;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
+    font-weight: 500;
 }
 
-.data-table-container {
-    background: white;
-    border-radius: 10px;
-    padding: 25px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+/* Indicadores coloridos */
+.summary-card.card-registros {
+    border-left: 4px solid #3498db;
+}
+
+.summary-card.card-dotacao {
+    border-left: 4px solid #2ecc71;
+}
+
+.summary-card.card-empenhada {
+    border-left: 4px solid #f39c12;
+}
+
+.summary-card.card-paga {
+    border-left: 4px solid #9b59b6;
+}
+
+/* Ícone de fundo decorativo */
+.summary-card::after {
+    content: '';
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    opacity: 0.05;
+}
+
+/* Estado de loading para cards */
+.card-value.loading {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    color: transparent;
+    border-radius: 4px;
+    min-height: 32px;
+    width: 80%;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ========================================
+   BOTÕES DE AÇÃO
+   ======================================== */
+
+.btn-group {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-weight: 500;
+    transition: all 0.3s;
+    border: none;
+    font-size: 0.92rem;
 }
 
 .btn-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
+    color: white;
 }
 
 .btn-primary:hover {
     background: linear-gradient(135deg, #5569d8 0%, #6a4190 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102,126,234,0.3);
 }
+
+.btn-success {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #27ae60, #229954);
+    transform: translateY(-2px);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.btn-info:hover {
+    background: linear-gradient(135deg, #2980b9, #21618c);
+    transform: translateY(-2px);
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+}
+
+.btn-warning:hover {
+    background: linear-gradient(135deg, #e67e22, #d35400);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #7f8c8d, #707b7c);
+    transform: translateY(-2px);
+}
+
+/* ========================================
+   CONTAINER DA TABELA - LARGURA TOTAL
+   ======================================== */
+
+.data-table-container {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+    margin-top: 25px;
+    border: 1px solid rgba(0,0,0,0.05);
+    width: 100%;
+    overflow-x: auto;
+}
+
+.data-table-container h5 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
+    font-size: 1.1rem;
+}
+
+/* Remove scroll horizontal desnecessário */
+.table-responsive {
+    overflow-x: visible !important;
+    width: 100%;
+}
+
+/* ========================================
+   TABELA DEMONSTRATIVO - OTIMIZADA
+   ======================================== */
+
+#tabelaDemonstrativo {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.85rem;
+}
+
+/* Largura das colunas */
+#tabelaDemonstrativo thead th:first-child {
+    width: 25%;
+    text-align: left;
+    padding-left: 20px;
+}
+
+#tabelaDemonstrativo thead th:not(:first-child) {
+    width: 12.5%;
+}
+
+#tabelaDemonstrativo thead th {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    color: white;
+    font-weight: 600;
+    text-align: center;
+    vertical-align: middle;
+    padding: 12px 6px;
+    font-size: 0.8rem;
+    letter-spacing: 0.3px;
+    border: none;
+    white-space: normal;
+    line-height: 1.2;
+}
+
+#tabelaDemonstrativo tbody tr {
+    transition: background-color 0.2s;
+}
+
+#tabelaDemonstrativo tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+#tabelaDemonstrativo tbody tr.categoria-row {
+    font-weight: bold;
+    background: #ecf0f1;
+}
+
+#tabelaDemonstrativo tbody tr.grupo-row {
+    background: #ffffff;
+}
+
+#tabelaDemonstrativo tbody tr.grupo-row td:first-child {
+    padding-left: 35px;
+    font-size: 0.83rem;
+}
+
+#tabelaDemonstrativo tbody tr.total-row {
+    font-weight: bold;
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+    color: white;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+
+#tabelaDemonstrativo tbody td {
+    vertical-align: middle;
+    padding: 10px 6px;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 0.83rem;
+}
+
+#tabelaDemonstrativo tbody td:not(:first-child) {
+    text-align: right;
+    white-space: nowrap;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    font-size: 0.82rem;
+    letter-spacing: -0.3px;
+}
+
+.valor-negativo, .text-danger {
+    color: #e74c3c !important;
+    font-weight: 600;
+}
+
+/* ========================================
+   LOADING OVERLAY
+   ======================================== */
 
 .loading-overlay {
     display: none;
@@ -79,7 +439,8 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(5px);
     z-index: 9999;
     justify-content: center;
     align-items: center;
@@ -89,66 +450,242 @@ body {
     display: flex;
 }
 
-/* Estilos para a tabela demonstrativo */
-#tabelaDemonstrativo {
+.loading-overlay .spinner-border {
+    width: 3rem !important;
+    height: 3rem !important;
+    border-width: 0.3rem;
+}
+
+.loading-overlay .text-light {
+    margin-top: 20px;
+    font-size: 1.1rem;
+    letter-spacing: 1px;
+}
+
+/* ========================================
+   FOOTER
+   ======================================== */
+
+footer {
+    background: #2c3e50;
+    color: white;
+    padding: 15px 0;
+    margin-top: 35px;
+}
+
+footer p {
+    margin: 3px 0;
     font-size: 0.9rem;
 }
 
-#tabelaDemonstrativo thead th {
-    background: #2c3e50;
+/* ========================================
+   BOTÃO TELA CHEIA
+   ======================================== */
+
+.btn-fullscreen {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    font-weight: 600;
-    text-align: center;
-    vertical-align: middle;
-    padding: 12px 8px;
-    white-space: nowrap;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    transition: all 0.3s;
 }
 
-#tabelaDemonstrativo tbody tr.categoria-row {
-    font-weight: bold;
-    background: #ecf0f1;
+.btn-fullscreen:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
 }
 
-#tabelaDemonstrativo tbody tr.grupo-row td:first-child {
-    padding-left: 30px;
+/* ========================================
+   MODO TELA CHEIA
+   ======================================== */
+
+.fullscreen-mode .navbar {
+    display: none;
 }
 
-#tabelaDemonstrativo tbody tr.total-row {
-    font-weight: bold;
-    background: #34495e;
-    color: white;
+.fullscreen-mode .dashboard-header {
+    display: none;
 }
 
-#tabelaDemonstrativo tbody td {
-    vertical-align: middle;
-    padding: 10px 8px;
+.fullscreen-mode footer {
+    display: none;
 }
 
-#tabelaDemonstrativo tbody td:not(:first-child) {
-    text-align: right;
-    white-space: nowrap;
+.fullscreen-mode .alert {
+    display: none;
 }
 
-.valor-negativo {
-    color: #e74c3c;
+.fullscreen-mode .filter-card {
+    margin-bottom: 15px;
+    padding: 15px 20px;
+    border-radius: 8px;
 }
 
-/* Responsividade */
-@media (max-width: 768px) {
-    .summary-card .card-value {
-        font-size: 1.5rem;
+.fullscreen-mode .data-table-container {
+    margin-top: 15px;
+    border-radius: 8px;
+    box-shadow: none;
+    padding: 20px;
+}
+
+.fullscreen-mode .container {
+    padding: 10px;
+}
+
+/* ========================================
+   ANIMAÇÕES
+   ======================================== */
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========================================
+   RESPONSIVIDADE
+   ======================================== */
+
+/* Telas grandes */
+@media (min-width: 1200px) {
+    #tabelaDemonstrativo {
+        font-size: 0.88rem;
     }
     
-    .data-table-container {
-        padding: 15px;
+    #tabelaDemonstrativo tbody td:not(:first-child) {
+        font-size: 0.85rem;
     }
-    
+}
+
+/* Tablets */
+@media (max-width: 1199px) {
     #tabelaDemonstrativo {
         font-size: 0.8rem;
     }
     
-    #tabelaDemonstrativo thead th,
+    #tabelaDemonstrativo thead th {
+        padding: 10px 5px;
+        font-size: 0.75rem;
+    }
+    
     #tabelaDemonstrativo tbody td {
-        padding: 5px 3px;
+        padding: 8px 5px;
+        font-size: 0.78rem;
+    }
+    
+    .table-responsive {
+        overflow-x: auto !important;
+    }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    .dashboard-header {
+        padding: 35px 0 25px;
+    }
+    
+    .dashboard-header h1 {
+        font-size: 1.8rem;
+    }
+    
+    .filter-card, .data-table-container {
+        padding: 15px;
+        border-radius: 10px;
+    }
+    
+    .summary-card {
+        min-height: 100px;
+        padding: 18px 15px;
+    }
+    
+    .summary-card .card-value {
+        font-size: 1.15rem;
+    }
+    
+    .summary-card .card-label {
+        font-size: 0.78rem;
+    }
+    
+    #summaryCards {
+        display: block;
+    }
+    
+    #summaryCards > div {
+        margin-bottom: 10px;
+    }
+    
+    .table-responsive {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #tabelaDemonstrativo {
+        min-width: 700px;
+        font-size: 0.72rem;
+    }
+    
+    .btn-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .btn {
+        font-size: 0.85rem;
+        padding: 8px 12px;
+    }
+    
+    .btn-fullscreen {
+        width: 45px;
+        height: 45px;
+        bottom: 15px;
+        right: 15px;
+    }
+}
+
+/* Mobile pequeno */
+@media (max-width: 576px) {
+    .btn-group {
+        grid-template-columns: 1fr;
+    }
+    
+    .summary-card .card-value {
+        font-size: 1.05rem;
+    }
+    
+    #tabelaDemonstrativo {
+        font-size: 0.68rem;
     }
 }
