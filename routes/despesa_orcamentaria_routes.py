@@ -41,44 +41,45 @@ def relatorio():
 @despesa_orcamentaria_bp.route('/api/ugs', methods=['GET'])
 def api_listar_ugs():
     """
-    Endpoint específico para listar todas as UGs disponíveis
-    Busca diretamente do banco de dados
+    Endpoint específico para listar UGs com movimentação financeira
+    
+    Query Params:
+    - todas: se 'true', retorna todas as UGs (mesmo sem movimento)
     """
     try:
         logger.info("Buscando lista de UGs...")
         
-        # Buscar UGs diretamente do banco
-        ugs = despesa_service.obter_lista_ugs()
+        # Verificar se deve mostrar todas ou apenas com movimento
+        mostrar_todas = request.args.get('todas', 'false').lower() == 'true'
         
-        if ugs:
-            return jsonify({
-                'success': True,
-                'unidades_gestoras': ugs,
-                'total': len(ugs)
-            })
-        else:
-            # Se não conseguir do banco, tentar do cache
-            df = despesa_service.executar_consulta()
-            if df is not None and not df.empty and 'COUG' in df.columns and 'NOUG' in df.columns:
-                ugs_df = df[['COUG', 'NOUG']].drop_duplicates().dropna()
-                ugs = []
-                for _, row in ugs_df.iterrows():
-                    ugs.append({
-                        'codigo': str(row['COUG']).strip(),
-                        'nome': str(row['NOUG']).strip()
-                    })
-                ugs.sort(key=lambda x: x['codigo'])
-                
+        # Buscar dados do cache/banco
+        df = despesa_service.executar_consulta()
+        
+        if df is not None and not df.empty:
+            if mostrar_todas:
+                # Mostrar todas as UGs
+                ugs = despesa_service.obter_lista_ugs()
+            else:
+                # Mostrar apenas UGs com movimentação
+                ugs = despesa_service.obter_ugs_com_movimento(df)
+            
+            if ugs:
                 return jsonify({
                     'success': True,
                     'unidades_gestoras': ugs,
                     'total': len(ugs),
-                    'fonte': 'cache'
+                    'filtrado': not mostrar_todas
                 })
-            
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Nenhuma UG com movimentação encontrada',
+                    'unidades_gestoras': []
+                }), 404
+        else:
             return jsonify({
                 'success': False,
-                'message': 'Nenhuma UG encontrada',
+                'message': 'Nenhum dado disponível',
                 'unidades_gestoras': []
             }), 404
             
@@ -220,21 +221,36 @@ def api_resumo():
 
 @despesa_orcamentaria_bp.route('/api/filtros', methods=['GET'])
 def api_filtros():
-    """Endpoint para obter filtros disponíveis"""
+    """
+    Endpoint para obter filtros disponíveis
+    
+    Query Params:
+    - todas_ugs: se 'true', retorna todas as UGs (mesmo sem movimento)
+    """
     try:
-        # Tentar obter filtros (incluindo UGs do banco)
-        filtros = despesa_service.obter_filtros_disponiveis()
+        # Verificar se deve mostrar todas as UGs
+        todas_ugs = request.args.get('todas_ugs', 'false').lower() == 'true'
         
-        # Se não conseguiu UGs, tentar do DataFrame
-        if not filtros.get('unidades_gestoras'):
-            df = despesa_service.executar_consulta()
-            if df is not None and not df.empty:
-                filtros = despesa_service.obter_filtros_disponiveis(df)
+        # Buscar dados
+        df = despesa_service.executar_consulta()
         
-        return jsonify({
-            'success': True,
-            'filtros': filtros
-        })
+        if df is not None and not df.empty:
+            # Obter filtros com opção de UGs
+            filtros = despesa_service.obter_filtros_disponiveis(
+                df, 
+                apenas_com_movimento=not todas_ugs
+            )
+            
+            return jsonify({
+                'success': True,
+                'filtros': filtros,
+                'ugs_filtradas': not todas_ugs
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Nenhum dado disponível'
+            }), 404
         
     except Exception as e:
         logger.error(f"Erro ao obter filtros: {e}")

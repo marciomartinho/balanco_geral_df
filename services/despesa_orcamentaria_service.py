@@ -372,12 +372,70 @@ class DespesaOrcamentariaService:
             self.cache.limpar()
         logger.info("🧹 Cache limpo")
         
-    def obter_filtros_disponiveis(self, df: pd.DataFrame = None) -> Dict:
+    def obter_ugs_com_movimento(self, df: pd.DataFrame = None) -> List[Dict[str, str]]:
         """
-        Retorna filtros disponíveis baseados nos dados ou diretamente do banco
+        Obtém apenas UGs que possuem movimentação financeira (valores não zerados)
         
         Args:
-            df: DataFrame opcional. Se não fornecido, busca UGs direto do banco
+            df: DataFrame com os dados. Se None, busca do cache/banco
+            
+        Returns:
+            Lista de UGs com movimentação
+        """
+        try:
+            # Se não passou DataFrame, buscar dados
+            if df is None:
+                df = self.executar_consulta()
+            
+            if df is None or df.empty:
+                return []
+            
+            # Colunas financeiras para verificar
+            colunas_financeiras = [
+                'DOTACAO_INICIAL', 'DOTACAO_ADICIONAL', 
+                'DESPESA_EMPENHADA', 'DESPESA_LIQUIDADA', 'DESPESA_PAGA'
+            ]
+            
+            # Verificar quais colunas existem no DataFrame
+            colunas_existentes = [col for col in colunas_financeiras if col in df.columns]
+            
+            if not colunas_existentes:
+                logger.warning("Nenhuma coluna financeira encontrada no DataFrame")
+                return []
+            
+            # Agrupar por UG e somar valores
+            logger.info("Identificando UGs com movimentação financeira...")
+            
+            ugs_com_movimento = []
+            ugs_agrupadas = df.groupby(['COUG', 'NOUG'])[colunas_existentes].sum()
+            
+            for (coug, noug), valores in ugs_agrupadas.iterrows():
+                # Verificar se tem algum valor diferente de zero
+                tem_movimento = any(valores[col] != 0 for col in colunas_existentes)
+                
+                if tem_movimento:
+                    ugs_com_movimento.append({
+                        'codigo': str(coug).strip(),
+                        'nome': str(noug).strip() if noug else 'SEM NOME'
+                    })
+            
+            # Ordenar por código
+            ugs_com_movimento.sort(key=lambda x: x['codigo'])
+            
+            logger.info(f"✅ {len(ugs_com_movimento)} UGs com movimentação financeira encontradas")
+            return ugs_com_movimento
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter UGs com movimento: {e}")
+            return []
+    
+    def obter_filtros_disponiveis(self, df: pd.DataFrame = None, apenas_com_movimento: bool = True) -> Dict:
+        """
+        Retorna filtros disponíveis baseados nos dados
+        
+        Args:
+            df: DataFrame opcional. Se não fornecido, busca dados
+            apenas_com_movimento: Se True, retorna apenas UGs com movimentação financeira
         """
         filtros = {
             'exercicios': [],
@@ -387,24 +445,24 @@ class DespesaOrcamentariaService:
             'fontes': []
         }
         
-        # Buscar UGs diretamente do banco (mais confiável)
-        try:
-            ugs = self.obter_lista_ugs()
-            filtros['unidades_gestoras'] = ugs
-        except Exception as e:
-            logger.error(f"Erro ao buscar UGs: {e}")
-            
-            # Fallback: tentar obter do DataFrame se disponível
-            if df is not None and not df.empty:
+        # Se não tem DataFrame, tentar buscar
+        if df is None:
+            df = self.executar_consulta()
+        
+        if df is not None and not df.empty:
+            # Obter UGs com ou sem movimento
+            if apenas_com_movimento:
+                filtros['unidades_gestoras'] = self.obter_ugs_com_movimento(df)
+            else:
+                # Buscar todas as UGs (comportamento anterior)
                 if 'COUG' in df.columns and 'NOUG' in df.columns:
                     ugs_df = df[['COUG', 'NOUG']].drop_duplicates().dropna().sort_values('COUG')
                     filtros['unidades_gestoras'] = [
                         {'codigo': str(row['COUG']).strip(), 'nome': str(row['NOUG']).strip()} 
                         for _, row in ugs_df.iterrows()
                     ]
-        
-        # Outros filtros do DataFrame se disponível
-        if df is not None and not df.empty:
+            
+            # Outros filtros
             if 'COEXERCICIO' in df.columns:
                 filtros['exercicios'] = sorted(df['COEXERCICIO'].unique().tolist())
             if 'INMES' in df.columns:
@@ -413,5 +471,5 @@ class DespesaOrcamentariaService:
                 filtros['funcoes'] = sorted(df['COFUNCAO'].dropna().unique().tolist())
             if 'COFONTE' in df.columns:
                 filtros['fontes'] = sorted(df['COFONTE'].dropna().unique().tolist())
-                
+        
         return filtros

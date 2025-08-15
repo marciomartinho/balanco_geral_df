@@ -253,19 +253,24 @@ const UI = {
 
 const DadosManager = {
     /**
-     * NOVO: Busca lista de UGs disponíveis
+     * NOVO: Busca lista de UGs disponíveis (apenas com movimentação)
      */
-    buscarUGs: async function() {
+    buscarUGs: async function(mostrarTodas = false) {
         try {
             console.log('🔍 Buscando lista de UGs...');
             
-            // Usar endpoint dedicado de UGs
-            const response = await fetch(`${AppConfig.apiBaseUrl}/ugs`);
+            // Usar endpoint dedicado de UGs com parâmetro para filtrar
+            const url = mostrarTodas ? 
+                `${AppConfig.apiBaseUrl}/ugs?todas=true` : 
+                `${AppConfig.apiBaseUrl}/ugs`;
+                
+            const response = await fetch(url);
             const result = await response.json();
 
             if (result.success && result.unidades_gestoras) {
                 const ugs = result.unidades_gestoras || [];
-                console.log(`✅ ${ugs.length} UGs encontradas ${result.fonte ? '(fonte: ' + result.fonte + ')' : ''}`);
+                const tipoFiltro = result.filtrado ? '(apenas com movimentação)' : '(todas)';
+                console.log(`✅ ${ugs.length} UGs encontradas ${tipoFiltro}`);
                 
                 AppState.listaUGs = ugs;
                 
@@ -288,8 +293,21 @@ const DadosManager = {
                     });
                     
                     console.log(`📝 ${ugs.length} UGs adicionadas ao select`);
+                    
+                    // Adicionar informação se está filtrado
+                    if (result.filtrado) {
+                        console.log('ℹ️ Mostrando apenas UGs com movimentação financeira');
+                    }
                 } else if (selectUG && ugs.length === 0) {
-                    console.warn('⚠️ Nenhuma UG retornada do servidor');
+                    console.warn('⚠️ Nenhuma UG com movimentação encontrada');
+                    
+                    // Adicionar opção informativa
+                    const option = new Option(
+                        'Nenhuma UG com movimentação no período',
+                        ''
+                    );
+                    option.disabled = true;
+                    selectUG.add(option);
                 }
                 
                 return ugs;
@@ -1028,7 +1046,7 @@ window.verificarUGsNosDados = function() {
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('===== APLICAÇÃO INICIADA =====');
     console.log('Timestamp:', Formatadores.dataHora());
-    console.log('Versão: 2.0 - Com filtro de UG');
+    console.log('Versão: 2.1 - Com filtro de UG (apenas com movimento)');
     console.log('Debug:', AppConfig.debug ? 'ATIVADO' : 'DESATIVADO');
     
     // Verificar elementos essenciais
@@ -1055,9 +1073,49 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Configurar filtros padrão
     UI.configurarFiltrosPadrao();
     
-    // NOVO: Carregar lista de UGs primeiro
-    console.log('📊 Carregando lista de UGs...');
-    await DadosManager.buscarUGs();
+    // NOVO: Adicionar eventos para recarregar UGs quando mudar exercício ou mês
+    const selectExercicio = document.getElementById('exercicio');
+    const selectMes = document.getElementById('mes');
+    
+    if (selectExercicio) {
+        selectExercicio.addEventListener('change', async function() {
+            console.log('📅 Exercício alterado, recarregando UGs...');
+            
+            // Resetar UG para CONSOLIDADO
+            const selectUG = document.getElementById('unidadeGestora');
+            if (selectUG) {
+                selectUG.value = 'CONSOLIDADO';
+            }
+            
+            // Buscar dados primeiro para ter o contexto atualizado
+            await consultarDados();
+            
+            // Recarregar UGs com movimento para o novo período
+            await DadosManager.buscarUGs(false);
+        });
+    }
+    
+    if (selectMes) {
+        selectMes.addEventListener('change', async function() {
+            console.log('📅 Mês alterado, recarregando UGs...');
+            
+            // Resetar UG para CONSOLIDADO
+            const selectUG = document.getElementById('unidadeGestora');
+            if (selectUG) {
+                selectUG.value = 'CONSOLIDADO';
+            }
+            
+            // Buscar dados primeiro para ter o contexto atualizado
+            await consultarDados();
+            
+            // Recarregar UGs com movimento para o novo período
+            await DadosManager.buscarUGs(false);
+        });
+    }
+    
+    // NOVO: Carregar lista de UGs primeiro (apenas com movimento)
+    console.log('📊 Carregando lista de UGs com movimentação...');
+    await DadosManager.buscarUGs(false); // false = apenas com movimento
     
     // Iniciar consulta automática
     console.log('📊 Iniciando consulta automática...');
@@ -1066,6 +1124,24 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('===== INICIALIZAÇÃO COMPLETA =====');
     console.log('💡 Dicas de debug:');
     console.log('   - debugDespesa() para ver estado da aplicação');
-    console.log('   - listarUGs() para ver todas as UGs disponíveis');
+    console.log('   - listarUGs() para ver UGs carregadas');
+    console.log('   - DadosManager.buscarUGs(true) para carregar TODAS as UGs');
     console.log('   - consultarDados() para recarregar dados');
 });
+
+/**
+ * NOVA: Função para mostrar/ocultar todas as UGs
+ */
+window.toggleTodasUGs = async function() {
+    const mostrarTodas = confirm('Deseja mostrar TODAS as UGs, mesmo sem movimentação?');
+    
+    if (mostrarTodas) {
+        console.log('🔄 Carregando TODAS as UGs...');
+        await DadosManager.buscarUGs(true);
+        console.log('✅ Mostrando todas as UGs');
+    } else {
+        console.log('🔄 Carregando apenas UGs com movimentação...');
+        await DadosManager.buscarUGs(false);
+        console.log('✅ Mostrando apenas UGs com movimentação');
+    }
+};
