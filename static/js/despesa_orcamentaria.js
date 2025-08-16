@@ -1,6 +1,6 @@
 /**
- * Sistema de Despesa Orçamentária - Com Filtro de UG
- * Versão 2.0 - Incluindo filtro de Unidade Gestora
+ * Sistema de Despesa Orçamentária - Com Quadro de Créditos Adicionais
+ * Versão 3.0 - Incluindo detalhamento de créditos adicionais
  * Sistema de Balanço Geral DF
  */
 
@@ -25,8 +25,9 @@ const AppState = {
     dadosFiltrados: null,
     filtrosAtuais: null,
     totaisCalculados: null,
+    totaisCreditos: null,
     ultimaConsulta: null,
-    listaUGs: null  // NOVO: Lista de UGs disponíveis
+    listaUGs: null
 };
 
 // ============================================================================
@@ -34,9 +35,6 @@ const AppState = {
 // ============================================================================
 
 const Formatadores = {
-    /**
-     * Formata valor como moeda brasileira compacta (para cards)
-     */
     moedaCompacta: function(valor) {
         if (valor === null || valor === undefined || isNaN(valor)) {
             return 'R$ 0,00';
@@ -59,9 +57,6 @@ const Formatadores = {
         }
     },
 
-    /**
-     * Formata valor como moeda brasileira completa (para tabela)
-     */
     moeda: function(valor) {
         if (valor === null || valor === undefined || isNaN(valor)) {
             return 'R$ 0,00';
@@ -70,9 +65,6 @@ const Formatadores = {
         return new Intl.NumberFormat('pt-BR', AppConfig.formatoMoeda).format(numero || 0);
     },
 
-    /**
-     * Formata número com separadores de milhares
-     */
     numero: function(num) {
         if (num === null || num === undefined || isNaN(num)) {
             return '0';
@@ -80,9 +72,6 @@ const Formatadores = {
         return new Intl.NumberFormat('pt-BR').format(num);
     },
 
-    /**
-     * Retorna nome do mês
-     */
     nomeMes: function(numeroMes) {
         const meses = [
             'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -91,9 +80,6 @@ const Formatadores = {
         return meses[numeroMes - 1] || '';
     },
 
-    /**
-     * Formata data/hora
-     */
     dataHora: function(date = new Date()) {
         return date.toLocaleString('pt-BR');
     }
@@ -104,9 +90,6 @@ const Formatadores = {
 // ============================================================================
 
 const UI = {
-    /**
-     * Mostra/esconde loading overlay
-     */
     toggleLoading: function(show, mensagem = 'Processando dados...') {
         const overlay = document.getElementById('loadingOverlay');
         if (!overlay) return;
@@ -120,9 +103,6 @@ const UI = {
         }
     },
 
-    /**
-     * Mostra loading nos cards
-     */
     mostrarLoadingCards: function() {
         const cards = ['totalRegistros', 'dotacaoInicial', 'despesaEmpenhada', 'despesaPaga'];
         cards.forEach(id => {
@@ -134,9 +114,6 @@ const UI = {
         });
     },
 
-    /**
-     * Remove loading dos cards
-     */
     removerLoadingCards: function() {
         const cards = ['totalRegistros', 'dotacaoInicial', 'despesaEmpenhada', 'despesaPaga'];
         cards.forEach(id => {
@@ -147,9 +124,6 @@ const UI = {
         });
     },
 
-    /**
-     * Atualiza um card específico com animação
-     */
     atualizarValorCard: function(id, valor) {
         const elemento = document.getElementById(id);
         if (!elemento) return;
@@ -163,9 +137,6 @@ const UI = {
         }, 150);
     },
 
-    /**
-     * Mostra cards vazios
-     */
     mostrarCardsVazios: function() {
         this.atualizarValorCard('totalRegistros', '0');
         this.atualizarValorCard('dotacaoInicial', 'R$ 0,00');
@@ -173,9 +144,6 @@ const UI = {
         this.atualizarValorCard('despesaPaga', 'R$ 0,00');
     },
 
-    /**
-     * NOVO: Atualiza badge da UG selecionada
-     */
     atualizarBadgeUG: function(ug) {
         const badge = document.getElementById('ugSelecionada');
         if (!badge) return;
@@ -183,7 +151,6 @@ const UI = {
         if (ug === 'CONSOLIDADO' || !ug) {
             badge.style.display = 'none';
         } else {
-            // Encontrar nome da UG
             const ugInfo = AppState.listaUGs?.find(u => u.codigo === ug);
             if (ugInfo) {
                 badge.textContent = `${ugInfo.codigo} - ${ugInfo.nome}`;
@@ -194,9 +161,6 @@ const UI = {
         }
     },
 
-    /**
-     * Configura filtros com valores padrão
-     */
     configurarFiltrosPadrao: function() {
         const hoje = new Date();
         const anoAtual = hoje.getFullYear();
@@ -217,7 +181,6 @@ const UI = {
             selectMes.value = mesAtual;
         }
 
-        // NOVO: Configurar UG padrão como CONSOLIDADO
         if (selectUG) {
             selectUG.value = 'CONSOLIDADO';
         }
@@ -231,17 +194,11 @@ const UI = {
         };
     },
 
-    /**
-     * Mostra mensagem de erro
-     */
     mostrarErro: function(mensagem) {
         console.error('❌ ERRO:', mensagem);
         alert('Erro: ' + mensagem);
     },
 
-    /**
-     * Mostra mensagem de sucesso
-     */
     mostrarSucesso: function(mensagem) {
         console.log('✅ SUCESSO:', mensagem);
     }
@@ -252,14 +209,10 @@ const UI = {
 // ============================================================================
 
 const DadosManager = {
-    /**
-     * NOVO: Busca lista de UGs disponíveis (apenas com movimentação)
-     */
     buscarUGs: async function(mostrarTodas = false) {
         try {
             console.log('🔍 Buscando lista de UGs...');
             
-            // Usar endpoint dedicado de UGs com parâmetro para filtrar
             const url = mostrarTodas ? 
                 `${AppConfig.apiBaseUrl}/ugs?todas=true` : 
                 `${AppConfig.apiBaseUrl}/ugs`;
@@ -274,15 +227,12 @@ const DadosManager = {
                 
                 AppState.listaUGs = ugs;
                 
-                // Atualizar select de UGs
                 const selectUG = document.getElementById('unidadeGestora');
                 if (selectUG && ugs.length > 0) {
-                    // Limpar opções existentes (mantendo CONSOLIDADO)
                     while (selectUG.options.length > 1) {
                         selectUG.remove(1);
                     }
                     
-                    // Adicionar UGs ordenadas por código
                     ugs.sort((a, b) => a.codigo.localeCompare(b.codigo));
                     ugs.forEach(ug => {
                         const option = new Option(
@@ -293,57 +243,9 @@ const DadosManager = {
                     });
                     
                     console.log(`📝 ${ugs.length} UGs adicionadas ao select`);
-                    
-                    // Adicionar informação se está filtrado
-                    if (result.filtrado) {
-                        console.log('ℹ️ Mostrando apenas UGs com movimentação financeira');
-                    }
-                } else if (selectUG && ugs.length === 0) {
-                    console.warn('⚠️ Nenhuma UG com movimentação encontrada');
-                    
-                    // Adicionar opção informativa
-                    const option = new Option(
-                        'Nenhuma UG com movimentação no período',
-                        ''
-                    );
-                    option.disabled = true;
-                    selectUG.add(option);
                 }
                 
                 return ugs;
-            } else {
-                console.warn('⚠️ Resposta inválida do servidor:', result);
-                
-                // Tentar endpoint alternativo /api/filtros como fallback
-                console.log('🔄 Tentando endpoint alternativo /api/filtros...');
-                const response2 = await fetch(`${AppConfig.apiBaseUrl}/filtros`);
-                const result2 = await response2.json();
-                
-                if (result2.success && result2.filtros && result2.filtros.unidades_gestoras) {
-                    const ugs = result2.filtros.unidades_gestoras || [];
-                    console.log(`✅ ${ugs.length} UGs encontradas (via filtros)`);
-                    
-                    AppState.listaUGs = ugs;
-                    
-                    // Atualizar select
-                    const selectUG = document.getElementById('unidadeGestora');
-                    if (selectUG && ugs.length > 0) {
-                        while (selectUG.options.length > 1) {
-                            selectUG.remove(1);
-                        }
-                        
-                        ugs.sort((a, b) => a.codigo.localeCompare(b.codigo));
-                        ugs.forEach(ug => {
-                            const option = new Option(
-                                `${ug.codigo} - ${ug.nome}`,
-                                ug.codigo
-                            );
-                            selectUG.add(option);
-                        });
-                    }
-                    
-                    return ugs;
-                }
             }
         } catch (error) {
             console.error('❌ Erro ao buscar UGs:', error);
@@ -352,9 +254,6 @@ const DadosManager = {
         return [];
     },
 
-    /**
-     * Busca dados do servidor
-     */
     buscarDados: async function() {
         try {
             console.log('🔍 Buscando dados do servidor...');
@@ -383,46 +282,29 @@ const DadosManager = {
         }
     },
 
-    /**
-     * Aplica filtros aos dados - MODIFICADO para incluir UG
-     */
     filtrarDados: function(dados, filtros) {
         if (!dados || dados.length === 0) return [];
 
         console.log('🔍 Aplicando filtros:', filtros);
         const inicio = Date.now();
 
-        // Variável para debug
-        let primeiroDebug = true;
-
         let dadosFiltrados = dados.filter(row => {
             const exercicio = parseInt(row.COEXERCICIO);
             const mes = parseInt(row.INMES);
             
-            // Filtrar pelo exercício e mês
             const exercicioValido = exercicio === filtros.exercicio;
             const mesValido = mes <= filtros.mes;
             
-            // NOVO: Filtrar por UG se não for CONSOLIDADO
-            // Comparar como string E como número para garantir compatibilidade
             let ugValida = true;
             if (filtros.ug && filtros.ug !== 'CONSOLIDADO') {
-                // Converter ambos para string e remover espaços para comparação
                 const ugFiltro = String(filtros.ug).trim();
                 const ugRow = String(row.COUG).trim();
                 
-                // Também tentar comparação numérica se ambos forem números
                 const ugFiltroNum = parseInt(ugFiltro);
                 const ugRowNum = parseInt(ugRow);
                 
                 ugValida = (ugRow === ugFiltro) || 
                           (!isNaN(ugFiltroNum) && !isNaN(ugRowNum) && ugFiltroNum === ugRowNum);
-                
-                // Debug para primeira linha
-                if (primeiroDebug && row.COUG) {
-                    console.log(`Debug UG - Filtro: "${ugFiltro}" (${typeof ugFiltro}), Row: "${ugRow}" (${typeof row.COUG}), Match: ${ugValida}`);
-                    primeiroDebug = false;
-                }
             }
             
             return exercicioValido && mesValido && ugValida;
@@ -430,43 +312,7 @@ const DadosManager = {
 
         const tempo = Date.now() - inicio;
         console.log(`✅ Filtros aplicados em ${tempo}ms`);
-        console.log(`📊 Resultado:`);
-        console.log(`   - Exercício ${filtros.exercicio}: ${dadosFiltrados.length} registros`);
-        console.log(`   - Até mês ${filtros.mes} (${Formatadores.nomeMes(filtros.mes)})`);
-        
-        // NOVO: Log da UG filtrada com mais detalhes
-        if (filtros.ug && filtros.ug !== 'CONSOLIDADO') {
-            const ugInfo = AppState.listaUGs?.find(u => u.codigo === filtros.ug);
-            console.log(`   - UG: ${filtros.ug} ${ugInfo ? '- ' + ugInfo.nome : ''}`);
-            
-            // Debug: verificar se há dados para esta UG em qualquer período
-            const todosRegistrosUG = dados.filter(row => {
-                const ugRow = String(row.COUG).trim();
-                const ugFiltro = String(filtros.ug).trim();
-                return ugRow === ugFiltro || parseInt(ugRow) === parseInt(ugFiltro);
-            });
-            
-            if (todosRegistrosUG.length > 0) {
-                console.log(`   - Total de registros para UG ${filtros.ug} (todos os períodos): ${todosRegistrosUG.length}`);
-                
-                // Verificar exercícios disponíveis para esta UG
-                const exerciciosUG = [...new Set(todosRegistrosUG.map(r => r.COEXERCICIO))];
-                console.log(`   - Exercícios disponíveis para esta UG: ${exerciciosUG.join(', ')}`);
-                
-                // Verificar meses disponíveis para esta UG no exercício selecionado
-                const registrosExercicio = todosRegistrosUG.filter(r => parseInt(r.COEXERCICIO) === filtros.exercicio);
-                if (registrosExercicio.length > 0) {
-                    const mesesUG = [...new Set(registrosExercicio.map(r => r.INMES))].sort((a, b) => a - b);
-                    console.log(`   - Meses disponíveis para ${filtros.exercicio}: ${mesesUG.join(', ')}`);
-                }
-            } else {
-                console.log(`   ⚠️ NENHUM registro encontrado para UG ${filtros.ug} em qualquer período`);
-            }
-        } else {
-            console.log(`   - UG: CONSOLIDADO (todas)`);
-        }
-        
-        console.log(`   - Total: ${dadosFiltrados.length} de ${dados.length} registros`);
+        console.log(`📊 Resultado: ${dadosFiltrados.length} registros`);
 
         AppState.dadosFiltrados = dadosFiltrados;
         AppState.filtrosAtuais = filtros;
@@ -474,9 +320,6 @@ const DadosManager = {
         return dadosFiltrados;
     },
 
-    /**
-     * Calcula totais dos dados filtrados
-     */
     calcularTotais: function(dados) {
         const totais = {
             dotacao_inicial: 0,
@@ -510,11 +353,46 @@ const DadosManager = {
         totais.saldo_dotacao = totais.dotacao_atualizada - totais.despesa_empenhada;
         
         return totais;
+    },
+
+    calcularTotaisCreditos: function(dados) {
+        const totais = {
+            credito_suplementar: 0,
+            credito_especial_aberto: 0,
+            credito_especial_reaberto: 0,
+            credito_extraordinario_reaberto: 0,
+            cancel_credito_suplementar: 0,
+            remanejamento_veto_lei: 0,
+            cancel_credito_especial: 0,
+            total_alteracoes: 0
+        };
+        
+        if (!dados || dados.length === 0) return totais;
+        
+        dados.forEach(row => {
+            totais.credito_suplementar += parseFloat(row.CREDITO_SUPLEMENTAR || 0);
+            totais.credito_especial_aberto += parseFloat(row.CREDITO_ESPECIAL_ABERTO || 0);
+            totais.credito_especial_reaberto += parseFloat(row.CREDITO_ESPECIAL_REABERTO || 0);
+            totais.credito_extraordinario_reaberto += parseFloat(row.CREDITO_EXTRAORD_REABERTO || 0);
+            totais.cancel_credito_suplementar += parseFloat(row.CANCEL_CREDITO_SUPLEMENTAR || 0);
+            totais.remanejamento_veto_lei += parseFloat(row.REMANEJAMENTO_VETO_LEI || 0);
+            totais.cancel_credito_especial += parseFloat(row.CANCEL_CREDITO_ESPECIAL || 0);
+        });
+        
+        totais.total_alteracoes = totais.credito_suplementar + 
+                                  totais.credito_especial_aberto + 
+                                  totais.credito_especial_reaberto + 
+                                  totais.credito_extraordinario_reaberto +
+                                  totais.cancel_credito_suplementar +
+                                  totais.remanejamento_veto_lei +
+                                  totais.cancel_credito_especial;
+        
+        return totais;
     }
 };
 
 // ============================================================================
-// RENDERIZADOR DE TABELA
+// RENDERIZADOR DE TABELA PRINCIPAL
 // ============================================================================
 
 const TabelaRenderer = {
@@ -572,7 +450,6 @@ const TabelaRenderer = {
     agregarDados: function(dados) {
         const agregados = {};
 
-        // Inicializar estrutura
         Object.entries(this.estruturaCategorias).forEach(([catId, catInfo]) => {
             agregados[catId] = {
                 nome: catInfo.nome,
@@ -588,7 +465,6 @@ const TabelaRenderer = {
             });
         });
 
-        // Processar dados
         dados.forEach(row => {
             const catId = String(row.CATEGORIA || '0');
             const grupoId = String(row.GRUPO || '0');
@@ -630,7 +506,6 @@ const TabelaRenderer = {
     renderizarLinhas: function(tbody, agregados) {
         const totalGeral = this.criarObjetoValores();
 
-        // Renderizar categorias
         ['3', '4', '9'].forEach(catId => {
             const categoria = agregados[catId];
             if (!categoria) return;
@@ -644,7 +519,6 @@ const TabelaRenderer = {
             tbody.appendChild(this.criarLinhaCategoria(categoria.nome, valores, dotacaoAtualizada, saldo));
             this.somarAoTotal(totalGeral, valores);
 
-            // Renderizar grupos
             const ordemGrupos = catId === '3' ? ['1', '2', '3'] : 
                                catId === '4' ? ['4', '5', '6'] : [];
 
@@ -659,7 +533,6 @@ const TabelaRenderer = {
             });
         });
 
-        // Adicionar linha de total
         const dotacaoAtualizadaTotal = this.calcularDotacaoAtualizada(totalGeral);
         const saldoTotal = dotacaoAtualizadaTotal - totalGeral.despesa_empenhada;
         tbody.appendChild(this.criarLinhaTotal(totalGeral, dotacaoAtualizadaTotal, saldoTotal));
@@ -747,7 +620,217 @@ const TabelaRenderer = {
 };
 
 // ============================================================================
-// FUNÇÃO PRINCIPAL DE CONSULTA - MODIFICADA PARA INCLUIR UG
+// RENDERIZADOR DA TABELA DE CRÉDITOS
+// ============================================================================
+
+const TabelaCreditosRenderer = {
+    renderizar: function(dados) {
+        console.log('💰 Renderizando quadro de créditos adicionais...');
+        
+        const tbody = document.getElementById('tabelaCorpoCreditos');
+        if (!tbody) {
+            console.error('❌ Elemento tabelaCorpoCreditos não encontrado!');
+            return null;
+        }
+
+        tbody.innerHTML = '';
+
+        if (!dados || dados.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-4">
+                        <i class="fas fa-inbox text-muted"></i>
+                        <p class="text-muted mt-2">Nenhum dado disponível para o período selecionado</p>
+                    </td>
+                </tr>`;
+            return null;
+        }
+
+        const agregados = this.agregarDadosCreditos(dados);
+        const totais = this.renderizarLinhasCreditos(tbody, agregados);
+        
+        return totais;
+    },
+
+    agregarDadosCreditos: function(dados) {
+        const agregados = {};
+
+        Object.entries(TabelaRenderer.estruturaCategorias).forEach(([catId, catInfo]) => {
+            agregados[catId] = {
+                nome: catInfo.nome,
+                valores: this.criarObjetoValoresCreditos(),
+                grupos: {}
+            };
+
+            Object.entries(catInfo.grupos).forEach(([grupoId, grupoNome]) => {
+                agregados[catId].grupos[grupoId] = {
+                    nome: grupoNome,
+                    valores: this.criarObjetoValoresCreditos()
+                };
+            });
+        });
+
+        dados.forEach(row => {
+            const catId = String(row.CATEGORIA || '0');
+            const grupoId = String(row.GRUPO || '0');
+
+            if (agregados[catId]) {
+                this.somarValoresCreditos(agregados[catId].valores, row);
+
+                if (agregados[catId].grupos[grupoId]) {
+                    this.somarValoresCreditos(agregados[catId].grupos[grupoId].valores, row);
+                }
+            }
+        });
+
+        return agregados;
+    },
+
+    criarObjetoValoresCreditos: function() {
+        return {
+            credito_suplementar: 0,
+            credito_especial_aberto: 0,
+            credito_especial_reaberto: 0,
+            credito_extraordinario_reaberto: 0,
+            cancel_credito_suplementar: 0,
+            remanejamento_veto_lei: 0,
+            cancel_credito_especial: 0,
+            total_alteracoes: 0
+        };
+    },
+
+    somarValoresCreditos: function(agregado, row) {
+        agregado.credito_suplementar += parseFloat(row.CREDITO_SUPLEMENTAR || 0);
+        agregado.credito_especial_aberto += parseFloat(row.CREDITO_ESPECIAL_ABERTO || 0);
+        agregado.credito_especial_reaberto += parseFloat(row.CREDITO_ESPECIAL_REABERTO || 0);
+        agregado.credito_extraordinario_reaberto += parseFloat(row.CREDITO_EXTRAORD_REABERTO || 0);
+        agregado.cancel_credito_suplementar += parseFloat(row.CANCEL_CREDITO_SUPLEMENTAR || 0);
+        agregado.remanejamento_veto_lei += parseFloat(row.REMANEJAMENTO_VETO_LEI || 0);
+        agregado.cancel_credito_especial += parseFloat(row.CANCEL_CREDITO_ESPECIAL || 0);
+        
+        agregado.total_alteracoes = agregado.credito_suplementar + 
+                                   agregado.credito_especial_aberto + 
+                                   agregado.credito_especial_reaberto + 
+                                   agregado.credito_extraordinario_reaberto +
+                                   agregado.cancel_credito_suplementar +
+                                   agregado.remanejamento_veto_lei +
+                                   agregado.cancel_credito_especial;
+    },
+
+    renderizarLinhasCreditos: function(tbody, agregados) {
+        const totalGeral = this.criarObjetoValoresCreditos();
+
+        ['3', '4', '9'].forEach(catId => {
+            const categoria = agregados[catId];
+            if (!categoria) return;
+
+            const valores = categoria.valores;
+            if (this.isValoresCreditosVazios(valores)) return;
+
+            tbody.appendChild(this.criarLinhaCategoriaCreditos(categoria.nome, valores));
+            this.somarAoTotalCreditos(totalGeral, valores);
+
+            const ordemGrupos = catId === '3' ? ['1', '2', '3'] : 
+                               catId === '4' ? ['4', '5', '6'] : [];
+
+            ordemGrupos.forEach(grupoId => {
+                const grupo = categoria.grupos[grupoId];
+                if (!grupo || this.isValoresCreditosVazios(grupo.valores)) return;
+
+                tbody.appendChild(this.criarLinhaGrupoCreditos(grupo.nome, grupo.valores));
+            });
+        });
+
+        tbody.appendChild(this.criarLinhaTotalCreditos(totalGeral));
+        
+        AppState.totaisCreditos = totalGeral;
+        
+        return totalGeral;
+    },
+
+    isValoresCreditosVazios: function(valores) {
+        return valores.credito_suplementar === 0 && 
+               valores.credito_especial_aberto === 0 &&
+               valores.credito_especial_reaberto === 0 &&
+               valores.credito_extraordinario_reaberto === 0 &&
+               valores.cancel_credito_suplementar === 0 &&
+               valores.remanejamento_veto_lei === 0 &&
+               valores.cancel_credito_especial === 0;
+    },
+
+    somarAoTotalCreditos: function(total, valores) {
+        total.credito_suplementar += valores.credito_suplementar;
+        total.credito_especial_aberto += valores.credito_especial_aberto;
+        total.credito_especial_reaberto += valores.credito_especial_reaberto;
+        total.credito_extraordinario_reaberto += valores.credito_extraordinario_reaberto;
+        total.cancel_credito_suplementar += valores.cancel_credito_suplementar;
+        total.remanejamento_veto_lei += valores.remanejamento_veto_lei;
+        total.cancel_credito_especial += valores.cancel_credito_especial;
+        total.total_alteracoes += valores.total_alteracoes;
+    },
+
+    criarLinhaCategoriaCreditos: function(nome, valores) {
+        const tr = document.createElement('tr');
+        tr.className = 'categoria-row';
+        tr.innerHTML = `
+            <td><strong>${nome}</strong></td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_suplementar)}</td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_especial_aberto)}</td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_especial_reaberto)}</td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_extraordinario_reaberto)}</td>
+            <td class="text-end ${valores.cancel_credito_suplementar < 0 ? 'text-danger' : ''}">${Formatadores.moeda(valores.cancel_credito_suplementar)}</td>
+            <td class="text-end ${valores.remanejamento_veto_lei < 0 ? 'text-danger' : ''}">${Formatadores.moeda(valores.remanejamento_veto_lei)}</td>
+            <td class="text-end ${valores.cancel_credito_especial < 0 ? 'text-danger' : ''}">${Formatadores.moeda(valores.cancel_credito_especial)}</td>
+            <td class="text-end"><strong>${Formatadores.moeda(valores.total_alteracoes)}</strong></td>
+        `;
+        return tr;
+    },
+
+    criarLinhaGrupoCreditos: function(nome, valores) {
+        const tr = document.createElement('tr');
+        tr.className = 'grupo-row';
+        tr.innerHTML = `
+            <td class="ps-4">${nome}</td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_suplementar)}</td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_especial_aberto)}</td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_especial_reaberto)}</td>
+            <td class="text-end">${Formatadores.moeda(valores.credito_extraordinario_reaberto)}</td>
+            <td class="text-end ${valores.cancel_credito_suplementar < 0 ? 'text-danger' : ''}">${Formatadores.moeda(valores.cancel_credito_suplementar)}</td>
+            <td class="text-end ${valores.remanejamento_veto_lei < 0 ? 'text-danger' : ''}">${Formatadores.moeda(valores.remanejamento_veto_lei)}</td>
+            <td class="text-end ${valores.cancel_credito_especial < 0 ? 'text-danger' : ''}">${Formatadores.moeda(valores.cancel_credito_especial)}</td>
+            <td class="text-end">${Formatadores.moeda(valores.total_alteracoes)}</td>
+        `;
+        return tr;
+    },
+
+    criarLinhaTotalCreditos: function(valores) {
+        const tr = document.createElement('tr');
+        tr.className = 'total-row';
+        tr.innerHTML = `
+            <td><strong>TOTAL GERAL</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valores.credito_suplementar)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valores.credito_especial_aberto)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valores.credito_especial_reaberto)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valores.credito_extraordinario_reaberto)}</strong></td>
+            <td class="text-end ${valores.cancel_credito_suplementar < 0 ? 'text-danger' : ''}">
+                <strong>${Formatadores.moeda(valores.cancel_credito_suplementar)}</strong>
+            </td>
+            <td class="text-end ${valores.remanejamento_veto_lei < 0 ? 'text-danger' : ''}">
+                <strong>${Formatadores.moeda(valores.remanejamento_veto_lei)}</strong>
+            </td>
+            <td class="text-end ${valores.cancel_credito_especial < 0 ? 'text-danger' : ''}">
+                <strong>${Formatadores.moeda(valores.cancel_credito_especial)}</strong>
+            </td>
+            <td class="text-end">
+                <strong>${Formatadores.moeda(valores.total_alteracoes)}</strong>
+            </td>
+        `;
+        return tr;
+    }
+};
+
+// ============================================================================
+// FUNÇÃO PRINCIPAL DE CONSULTA
 // ============================================================================
 
 async function consultarDados() {
@@ -755,11 +838,9 @@ async function consultarDados() {
     console.log('Timestamp:', Formatadores.dataHora());
 
     try {
-        // 1. Preparar UI
         UI.mostrarLoadingCards();
         UI.toggleLoading(true, 'Consultando dados...');
 
-        // 2. Obter filtros (INCLUINDO UG)
         const exercicio = parseInt(document.getElementById('exercicio').value);
         const mes = parseInt(document.getElementById('mes').value);
         const ug = document.getElementById('unidadeGestora').value;
@@ -769,46 +850,41 @@ async function consultarDados() {
         console.log(`   - Mês: ${mes} (${Formatadores.nomeMes(mes)})`);
         console.log(`   - UG: ${ug === 'CONSOLIDADO' ? 'CONSOLIDADO (todas)' : ug}`);
 
-        // 3. Atualizar badge da UG
         UI.atualizarBadgeUG(ug);
 
-        // 4. Buscar dados completos (usar cache se já carregado)
         UI.toggleLoading(true, 'Carregando dados...');
         
         let dados = AppState.dadosCompletos;
         if (!dados) {
             dados = await DadosManager.buscarDados();
             
-            // Carregar lista de UGs se ainda não tiver
             if (!AppState.listaUGs) {
                 await DadosManager.buscarUGs();
             }
         }
 
-        // 5. Filtrar dados incluindo UG
         UI.toggleLoading(true, 'Aplicando filtros...');
         const dadosFiltrados = DadosManager.filtrarDados(dados, { 
             exercicio, 
             mes,
-            ug  // NOVO: incluir UG no filtro
+            ug
         });
 
-        // 6. Calcular totais dos dados filtrados
         const totais = DadosManager.calcularTotais(dadosFiltrados);
         AppState.totaisCalculados = totais;
         
-        // 7. Atualizar cards
         UI.removerLoadingCards();
         UI.atualizarValorCard('totalRegistros', Formatadores.numero(dadosFiltrados.length));
         UI.atualizarValorCard('dotacaoInicial', Formatadores.moedaCompacta(totais.dotacao_inicial));
         UI.atualizarValorCard('despesaEmpenhada', Formatadores.moedaCompacta(totais.despesa_empenhada));
         UI.atualizarValorCard('despesaPaga', Formatadores.moedaCompacta(totais.despesa_paga));
 
-        // 8. Renderizar tabela
         UI.toggleLoading(true, 'Montando demonstrativo...');
         const totaisTabela = TabelaRenderer.renderizar(dadosFiltrados);
 
-        // 9. Debug
+        UI.toggleLoading(true, 'Montando quadro de créditos...');
+        const totaisCreditos = TabelaCreditosRenderer.renderizar(dadosFiltrados);
+
         if (AppConfig.debug) {
             console.log('===== RESUMO DA CONSULTA =====');
             console.log('Total de registros:', dadosFiltrados.length);
@@ -822,10 +898,15 @@ async function consultarDados() {
             console.log('   Dotação:', Formatadores.moedaCompacta(totais.dotacao_inicial));
             console.log('   Empenhada:', Formatadores.moedaCompacta(totais.despesa_empenhada));
             console.log('   Paga:', Formatadores.moedaCompacta(totais.despesa_paga));
+            
+            if (AppState.totaisCreditos) {
+                console.log('Créditos Adicionais:');
+                console.log('   Total Alterações:', Formatadores.moedaCompacta(AppState.totaisCreditos.total_alteracoes));
+            }
+            
             console.log('================================');
         }
 
-        // 10. Finalizar
         AppState.ultimaConsulta = new Date();
         UI.mostrarSucesso('Dados carregados com sucesso!');
 
@@ -841,14 +922,13 @@ async function consultarDados() {
 }
 
 // ============================================================================
-// FUNÇÕES DE EXPORTAÇÃO - MODIFICADAS PARA INCLUIR UG
+// FUNÇÕES DE EXPORTAÇÃO
 // ============================================================================
 
 async function exportarDados(formato) {
     try {
         UI.toggleLoading(true, `Exportando para ${formato.toUpperCase()}...`);
 
-        // Incluir UG no nome do arquivo se estiver filtrado
         const ug = document.getElementById('unidadeGestora').value;
         let nomeArquivo = `despesa_orcamentaria_${new Date().toISOString().slice(0,10)}`;
         
@@ -862,7 +942,8 @@ async function exportarDados(formato) {
             body: JSON.stringify({ 
                 formato,
                 nome_arquivo: nomeArquivo,
-                ug: ug !== 'CONSOLIDADO' ? ug : null
+                ug: ug !== 'CONSOLIDADO' ? ug : null,
+                incluir_creditos: true
             })
         });
 
@@ -905,11 +986,11 @@ async function limparCache() {
             AppState.dadosCompletos = null;
             AppState.dadosFiltrados = null;
             AppState.totaisCalculados = null;
+            AppState.totaisCreditos = null;
             AppState.listaUGs = null;
             
             UI.mostrarSucesso('Cache limpo com sucesso!');
             
-            // Recarregar dados e UGs
             await DadosManager.buscarUGs();
             await consultarDados();
         }
@@ -921,12 +1002,9 @@ async function limparCache() {
 }
 
 // ============================================================================
-// FUNÇÕES DE DEBUG - ATUALIZADAS
+// FUNÇÕES DE DEBUG
 // ============================================================================
 
-/**
- * Função de debug principal
- */
 window.debugDespesa = function() {
     console.log('===== DEBUG - ESTADO DA APLICAÇÃO =====');
     console.log('Configuração:', AppConfig);
@@ -948,18 +1026,19 @@ window.debugDespesa = function() {
         });
     }
     
-    // Listar UGs disponíveis
-    if (AppState.listaUGs && AppState.listaUGs.length > 0) {
-        console.log(`UGs disponíveis: ${AppState.listaUGs.length}`);
-        console.log('Primeiras 5 UGs:', AppState.listaUGs.slice(0, 5));
+    if (AppState.totaisCreditos) {
+        console.log('Totais de Créditos:', {
+            credito_suplementar: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_suplementar),
+            credito_especial_aberto: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_especial_aberto),
+            credito_especial_reaberto: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_especial_reaberto),
+            credito_extraordinario_reaberto: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_extraordinario_reaberto),
+            total_alteracoes: Formatadores.moedaCompacta(AppState.totaisCreditos.total_alteracoes)
+        });
     }
     
     console.log('========================================');
 };
 
-/**
- * NOVA: Lista todas as UGs disponíveis
- */
 window.listarUGs = function() {
     if (!AppState.listaUGs || AppState.listaUGs.length === 0) {
         console.log('❌ Nenhuma UG carregada. Execute consultarDados() primeiro.');
@@ -977,83 +1056,19 @@ window.listarUGs = function() {
     console.log('=======================================');
 };
 
-/**
- * NOVA: Verifica UGs nos dados carregados
- */
-window.verificarUGsNosDados = function() {
-    if (!AppState.dadosCompletos || AppState.dadosCompletos.length === 0) {
-        console.log('❌ Nenhum dado carregado. Execute consultarDados() primeiro.');
-        return;
-    }
-    
-    console.log('===== UGs NOS DADOS CARREGADOS =====');
-    
-    // Obter UGs únicas dos dados
-    const ugsNosDados = new Set();
-    const ugsPorCodigo = {};
-    
-    AppState.dadosCompletos.forEach(row => {
-        if (row.COUG) {
-            const codigo = String(row.COUG).trim();
-            ugsNosDados.add(codigo);
-            
-            if (!ugsPorCodigo[codigo]) {
-                ugsPorCodigo[codigo] = {
-                    codigo: codigo,
-                    nome: row.NOUG || 'SEM NOME',
-                    tipo: typeof row.COUG,
-                    registros: 0
-                };
-            }
-            ugsPorCodigo[codigo].registros++;
-        }
-    });
-    
-    console.log(`Total de UGs únicas nos dados: ${ugsNosDados.size}`);
-    console.log('');
-    console.log('Primeiras 10 UGs:');
-    
-    const ugsArray = Object.values(ugsPorCodigo).sort((a, b) => a.codigo.localeCompare(b.codigo));
-    ugsArray.slice(0, 10).forEach(ug => {
-        console.log(`${ug.codigo} (tipo: ${ug.tipo}) - ${ug.nome} - ${ug.registros} registros`);
-    });
-    
-    // Verificar se a UG 10901 existe
-    if (ugsPorCodigo['10901']) {
-        console.log('');
-        console.log('✅ UG 10901 encontrada nos dados:', ugsPorCodigo['10901']);
-    } else {
-        console.log('');
-        console.log('❌ UG 10901 NÃO encontrada nos dados');
-        
-        // Procurar variações
-        const variacoes = ['010901', '10901', ' 10901', '10901 '];
-        console.log('Procurando variações...');
-        variacoes.forEach(v => {
-            if (ugsPorCodigo[v]) {
-                console.log(`Encontrada como: "${v}"`);
-            }
-        });
-    }
-    
-    console.log('=====================================');
-};
-
 // ============================================================================
-// INICIALIZAÇÃO - MODIFICADA PARA CARREGAR UGs
+// INICIALIZAÇÃO
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('===== APLICAÇÃO INICIADA =====');
     console.log('Timestamp:', Formatadores.dataHora());
-    console.log('Versão: 2.1 - Com filtro de UG (apenas com movimento)');
+    console.log('Versão: 3.0 - Com Quadro de Créditos Adicionais');
     console.log('Debug:', AppConfig.debug ? 'ATIVADO' : 'DESATIVADO');
     
-    // Verificar elementos essenciais
     const elementosRequeridos = [
-        'tabelaCorpo', 'exercicio', 'mes', 'unidadeGestora',
-        'totalRegistros', 'dotacaoInicial', 
-        'despesaEmpenhada', 'despesaPaga'
+        'tabelaCorpo', 'tabelaCorpoCreditos', 'exercicio', 'mes', 'unidadeGestora',
+        'totalRegistros', 'dotacaoInicial', 'despesaEmpenhada', 'despesaPaga'
     ];
     
     let todosPresentes = true;
@@ -1070,10 +1085,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
     
-    // Configurar filtros padrão
     UI.configurarFiltrosPadrao();
     
-    // NOVO: Adicionar eventos para recarregar UGs quando mudar exercício ou mês
     const selectExercicio = document.getElementById('exercicio');
     const selectMes = document.getElementById('mes');
     
@@ -1081,16 +1094,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         selectExercicio.addEventListener('change', async function() {
             console.log('📅 Exercício alterado, recarregando UGs...');
             
-            // Resetar UG para CONSOLIDADO
             const selectUG = document.getElementById('unidadeGestora');
             if (selectUG) {
                 selectUG.value = 'CONSOLIDADO';
             }
             
-            // Buscar dados primeiro para ter o contexto atualizado
             await consultarDados();
-            
-            // Recarregar UGs com movimento para o novo período
             await DadosManager.buscarUGs(false);
         });
     }
@@ -1099,25 +1108,19 @@ document.addEventListener('DOMContentLoaded', async function() {
         selectMes.addEventListener('change', async function() {
             console.log('📅 Mês alterado, recarregando UGs...');
             
-            // Resetar UG para CONSOLIDADO
             const selectUG = document.getElementById('unidadeGestora');
             if (selectUG) {
                 selectUG.value = 'CONSOLIDADO';
             }
             
-            // Buscar dados primeiro para ter o contexto atualizado
             await consultarDados();
-            
-            // Recarregar UGs com movimento para o novo período
             await DadosManager.buscarUGs(false);
         });
     }
     
-    // NOVO: Carregar lista de UGs primeiro (apenas com movimento)
     console.log('📊 Carregando lista de UGs com movimentação...');
-    await DadosManager.buscarUGs(false); // false = apenas com movimento
+    await DadosManager.buscarUGs(false);
     
-    // Iniciar consulta automática
     console.log('📊 Iniciando consulta automática...');
     await consultarDados();
     
@@ -1125,13 +1128,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('💡 Dicas de debug:');
     console.log('   - debugDespesa() para ver estado da aplicação');
     console.log('   - listarUGs() para ver UGs carregadas');
-    console.log('   - DadosManager.buscarUGs(true) para carregar TODAS as UGs');
     console.log('   - consultarDados() para recarregar dados');
 });
 
-/**
- * NOVA: Função para mostrar/ocultar todas as UGs
- */
 window.toggleTodasUGs = async function() {
     const mostrarTodas = confirm('Deseja mostrar TODAS as UGs, mesmo sem movimentação?');
     

@@ -258,6 +258,69 @@
             </div>
         </div>
 
+        <!-- NOVO: Quadro por Tipos de Créditos Adicionais -->
+        <div class="data-table-container mt-4">
+            <h5>
+                <i class="fas fa-file-invoice-dollar"></i> 
+                Quadro por Tipos de Créditos Adicionais
+                <span id="tituloUGCreditos" class="badge bg-secondary ms-2" style="display: none;"></span>
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="tabelaCreditos">
+                    <thead>
+                        <tr>
+                            <th>DESPESAS ORÇAMENTÁRIAS</th>
+                            <th class="text-center">
+                                CRÉDITO<br/>ADICIONAL<br/>SUPLEMENTAR<br/>
+                                <small>(a)</small>
+                            </th>
+                            <th class="text-center">
+                                CRÉDITOS<br/>ESPECIAIS<br/>ABERTOS<br/>
+                                <small>(b)</small>
+                            </th>
+                            <th class="text-center">
+                                CRÉDITOS<br/>ESPECIAIS<br/>REABERTOS<br/>
+                                <small>(c)</small>
+                            </th>
+                            <th class="text-center">
+                                CRÉDITOS<br/>EXTRAORDINÁRIOS<br/>REABERTOS<br/>
+                                <small>(d)</small>
+                            </th>
+                            <th class="text-center">
+                                (-) CANCELAMENTO<br/>DOTAÇÃO PARA<br/>CRÉDITO<br/>SUPLEMENTAR<br/>
+                                <small>(e)</small>
+                            </th>
+                            <th class="text-center">
+                                (-) REMANEJAMENTO<br/>POR VETO LEI<br/>ORÇAMENTÁRIA<br/>
+                                <small>(f)</small>
+                            </th>
+                            <th class="text-center">
+                                (-) CANCELAMENTO<br/>DOTAÇÃO PARA<br/>CRÉDITO ESPECIAL<br/>
+                                <small>(g)</small>
+                            </th>
+                            <th class="text-center">
+                                TOTAL DE<br/>ALTERAÇÕES<br/>
+                                <small>(h) = (a+b+c+d+e+f+g)</small>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaCorpoCreditos">
+                        <tr>
+                            <td colspan="9" class="text-center py-5">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="text-muted">
+                                    <i class="fas fa-hourglass-half"></i> 
+                                    Carregando dados de créditos adicionais...
+                                </p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Info Section -->
         <div class="row mt-4">
             <div class="col-12">
@@ -345,7 +408,7 @@
         
         // Log de inicialização
         console.log('Página carregada:', new Date().toLocaleString('pt-BR'));
-        console.log('Versão do Sistema: 1.0.1');
+        console.log('Versão do Sistema: 2.0 - Com Quadro de Créditos Adicionais');
         console.log('Dica: Pressione F9 para modo tela cheia');
     </script>
 </body>
