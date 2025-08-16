@@ -163,19 +163,10 @@
             </div>
         </div>
 
-        <!-- UG Info Badge (aparece quando uma UG específica é selecionada) -->
-        <div class="row mb-3" id="ugInfoBadge" style="display: none;">
+        <!-- UG Badge (aparece quando uma UG específica é selecionada) -->
+        <div class="row mb-3">
             <div class="col-12">
-                <div class="alert alert-info d-flex justify-content-between align-items-center">
-                    <span>
-                        <i class="fas fa-building"></i> 
-                        <strong>Filtrado por:</strong> 
-                        <span id="ugNomeSelecionado"></span>
-                    </span>
-                    <button class="btn btn-sm btn-outline-info" onclick="limparFiltroUG()">
-                        <i class="fas fa-times"></i> Limpar Filtro
-                    </button>
-                </div>
+                <span id="ugSelecionada" class="badge bg-info" style="display: none;"></span>
             </div>
         </div>
 
@@ -357,10 +348,11 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Select2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <!-- Custom JS -->
-    <script src="{{ url_for('static', filename='js/despesa_orcamentaria.js') }}"></script>
     
-    <!-- Script para Modo Tela Cheia e inicialização do Select2 -->
+    <!-- MUDANÇA PRINCIPAL: Usar módulos ES6 -->
+    <script type="module" src="{{ url_for('static', filename='js/despesa_orcamentaria/main.js') }}"></script>
+    
+    <!-- Scripts inline (funcionalidades específicas da página) -->
     <script>
         function toggleFullscreen() {
             const body = document.body;
@@ -380,12 +372,6 @@
                 // Scroll para o topo
                 window.scrollTo(0, 0);
             }
-        }
-        
-        // Função para limpar filtro de UG
-        function limparFiltroUG() {
-            $('#unidadeGestora').val('CONSOLIDADO').trigger('change');
-            consultarDados();
         }
         
         // Atalho de teclado (F9)
@@ -408,7 +394,7 @@
         
         // Log de inicialização
         console.log('Página carregada:', new Date().toLocaleString('pt-BR'));
-        console.log('Versão do Sistema: 2.0 - Com Quadro de Créditos Adicionais');
+        console.log('Versão do Sistema: 3.0 - Refatorada com Módulos');
         console.log('Dica: Pressione F9 para modo tela cheia');
     </script>
 </body>
