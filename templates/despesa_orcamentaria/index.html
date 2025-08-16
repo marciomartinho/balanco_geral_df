@@ -214,6 +214,21 @@
             </div>
             <div class="table-responsive">
                 <table class="table table-bordered table-hover table-comparativa" id="tabelaDemonstrativo">
+                    <colgroup>
+                        <col style="width: 25%;">  <!-- Descrição -->
+                        <col style="width: 8%;">   <!-- Dotação Inicial -->
+                        <col style="width: 8%;">   <!-- Dotação Atualizada -->
+                        <col style="width: 7%;">   <!-- Empenhada Anterior -->
+                        <col style="width: 7%;">   <!-- Empenhada Atual -->
+                        <col style="width: 5%;">   <!-- Var % Empenhada -->
+                        <col style="width: 7%;">   <!-- Liquidada Anterior -->
+                        <col style="width: 7%;">   <!-- Liquidada Atual -->
+                        <col style="width: 5%;">   <!-- Var % Liquidada -->
+                        <col style="width: 7%;">   <!-- Paga Anterior -->
+                        <col style="width: 7%;">   <!-- Paga Atual -->
+                        <col style="width: 5%;">   <!-- Var % Paga -->
+                        <col style="width: 7%;">   <!-- Saldo -->
+                    </colgroup>
                     <thead>
                         <tr class="thead-main">
                             <th rowspan="3" class="align-middle">DESPESAS ORÇAMENTÁRIAS</th>
@@ -395,11 +410,14 @@
                 });
                 btnTexto.textContent = 'Colapsar Todos';
             } else {
-                // Colapsar todos
-                document.querySelectorAll('.btn-collapse').forEach(btn => {
-                    if (btn.querySelector('i').classList.contains('fa-minus-square')) {
-                        btn.click();
-                    }
+                // Colapsar todos - remover todas as linhas de detalhes
+                document.querySelectorAll('tr.detalhe-item').forEach(row => {
+                    row.remove();
+                });
+                // Atualizar ícones
+                document.querySelectorAll('.btn-collapse i').forEach(icon => {
+                    icon.classList.remove('fa-minus-square');
+                    icon.classList.add('fa-plus-square');
                 });
                 btnTexto.textContent = 'Expandir Todos';
             }

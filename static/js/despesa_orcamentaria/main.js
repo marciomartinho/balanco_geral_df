@@ -211,17 +211,18 @@ window.toggleGrupoDetalhes = async function(catId, grupoId) {
     const btn = document.getElementById(`btn-${catId}-${grupoId}`);
     const icon = btn?.querySelector('i');
     
-    let detalhesRow = document.getElementById(detalheId);
+    // Verificar se já existem linhas de detalhes para este grupo
+    const detalhesExistentes = document.querySelectorAll(`tr[data-detalhe-grupo="${detalheId}"]`);
     
-    if (detalhesRow) {
-        // Se já existe, remover
-        detalhesRow.remove();
+    if (detalhesExistentes.length > 0) {
+        // Se já existem, remover todas
+        detalhesExistentes.forEach(row => row.remove());
         if (icon) {
             icon.classList.remove('fa-minus-square');
             icon.classList.add('fa-plus-square');
         }
     } else {
-        // Criar nova linha de detalhes
+        // Criar novas linhas de detalhes
         UI.toggleLoading(true, 'Carregando detalhes...');
         
         try {
@@ -247,11 +248,17 @@ window.toggleGrupoDetalhes = async function(catId, grupoId) {
             
             const detalhes = obterDetalhesGrupoComparativo(dadosFiltrados, dadosAnterior, catId, grupoId);
             
-            // Criar e inserir linha de detalhes
+            // Criar e inserir linhas de detalhes
             const grupoRow = btn?.closest('tr');
             if (grupoRow && detalhes.length > 0) {
-                const novaLinha = criarLinhaDetalhes(detalheId, detalhes);
-                grupoRow.insertAdjacentElement('afterend', novaLinha);
+                const linhasDetalhes = criarLinhaDetalhes(detalheId, detalhes);
+                
+                // Inserir todas as linhas após a linha do grupo
+                let elementoAnterior = grupoRow;
+                linhasDetalhes.childNodes.forEach(linha => {
+                    elementoAnterior.insertAdjacentElement('afterend', linha);
+                    elementoAnterior = linha;
+                });
                 
                 if (icon) {
                     icon.classList.remove('fa-plus-square');
@@ -416,25 +423,14 @@ function obterDetalhesGrupo(dados, catId, grupoId) {
 }
 
 function criarLinhaDetalhes(id, detalhes) {
-    const tr = document.createElement('tr');
-    tr.id = id;
-    tr.className = 'detalhes-row';
+    // Criar um fragmento para múltiplas linhas
+    const fragment = document.createDocumentFragment();
     
-    // Criar célula única que ocupa toda a largura (13 colunas para tabela comparativa)
-    const td = document.createElement('td');
-    td.colSpan = 13;
-    td.style.padding = '0';
-    
-    // Criar tabela interna para os detalhes SEM CABEÇALHO PRÓPRIO
-    const tabelaInterna = document.createElement('table');
-    tabelaInterna.className = 'table table-sm mb-0 tabela-detalhes-interna';
-    tabelaInterna.style.width = '100%';
-    tabelaInterna.style.tableLayout = 'fixed'; // Força larguras fixas
-    
-    // Corpo da tabela interna
-    const tbody = document.createElement('tbody');
-    
-    detalhes.forEach(detalhe => {
+    detalhes.forEach((detalhe, index) => {
+        const tr = document.createElement('tr');
+        tr.className = 'detalhe-item';
+        tr.dataset.detalheGrupo = id; // Para identificar todas as linhas do mesmo grupo
+        
         const dotacaoAtualizada = detalhe.valores.dotacao_atualizada || 
                                  (detalhe.valores.dotacao_inicial + 
                                   detalhe.valores.dotacao_adicional + 
@@ -452,57 +448,53 @@ function criarLinhaDetalhes(id, detalhes) {
         const varLiquidada = calcularVariacaoPercentual(detalhe.valores.despesa_liquidada, liquidadaAnterior);
         const varPaga = calcularVariacaoPercentual(detalhe.valores.despesa_paga, pagaAnterior);
         
-        const linha = document.createElement('tr');
-        linha.className = 'detalhe-item';
-        linha.innerHTML = `
-            <td class="ps-5" style="width: 25%; min-width: 250px;">
-                <small>${detalhe.natureza}</small>
+        // Criar células individuais seguindo exatamente a estrutura da tabela principal
+        tr.innerHTML = `
+            <td class="ps-5">
+                <small class="text-muted">${detalhe.natureza}</small>
             </td>
-            <td class="text-end" style="width: 7%;">
+            <td class="text-end">
                 ${Formatadores.moeda(detalhe.valores.dotacao_inicial)}
             </td>
-            <td class="text-end" style="width: 7%;">
+            <td class="text-end">
                 ${Formatadores.moeda(dotacaoAtualizada)}
             </td>
-            <td class="text-end valor-ano-anterior" style="width: 7%;">
+            <td class="text-end valor-ano-anterior">
                 ${Formatadores.moeda(empenhadaAnterior)}
             </td>
-            <td class="text-end" style="width: 7%;">
+            <td class="text-end">
                 ${Formatadores.moeda(detalhe.valores.despesa_empenhada)}
             </td>
-            <td class="text-end ${varEmpenhada.classe}" style="width: 4.5%; font-size: 0.7rem;">
-                ${formatarVariacao(varEmpenhada)}
+            <td class="text-end ${varEmpenhada.classe}">
+                <small>${formatarVariacao(varEmpenhada)}</small>
             </td>
-            <td class="text-end valor-ano-anterior" style="width: 7%;">
+            <td class="text-end valor-ano-anterior">
                 ${Formatadores.moeda(liquidadaAnterior)}
             </td>
-            <td class="text-end" style="width: 7%;">
+            <td class="text-end">
                 ${Formatadores.moeda(detalhe.valores.despesa_liquidada)}
             </td>
-            <td class="text-end ${varLiquidada.classe}" style="width: 4.5%; font-size: 0.7rem;">
-                ${formatarVariacao(varLiquidada)}
+            <td class="text-end ${varLiquidada.classe}">
+                <small>${formatarVariacao(varLiquidada)}</small>
             </td>
-            <td class="text-end valor-ano-anterior" style="width: 7%;">
+            <td class="text-end valor-ano-anterior">
                 ${Formatadores.moeda(pagaAnterior)}
             </td>
-            <td class="text-end" style="width: 7%;">
+            <td class="text-end">
                 ${Formatadores.moeda(detalhe.valores.despesa_paga)}
             </td>
-            <td class="text-end ${varPaga.classe}" style="width: 4.5%; font-size: 0.7rem;">
-                ${formatarVariacao(varPaga)}
+            <td class="text-end ${varPaga.classe}">
+                <small>${formatarVariacao(varPaga)}</small>
             </td>
-            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}" style="width: 7%;">
+            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}">
                 <strong>${Formatadores.moeda(saldo)}</strong>
             </td>
         `;
-        tbody.appendChild(linha);
+        
+        fragment.appendChild(tr);
     });
     
-    tabelaInterna.appendChild(tbody);
-    td.appendChild(tabelaInterna);
-    tr.appendChild(td);
-    
-    return tr;
+    return fragment;
 }
 
 // Função auxiliar para calcular variação percentual

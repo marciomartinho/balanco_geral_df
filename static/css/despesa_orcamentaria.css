@@ -383,7 +383,23 @@ body {
     border-collapse: separate; 
     border-spacing: 0; 
     background: white;
+    table-layout: fixed; /* Importante: força larguras fixas */
 }
+
+/* Definir larguras específicas para cada coluna */
+#tabelaDemonstrativo colgroup col:nth-child(1) { width: 25%; }  /* Descrição */
+#tabelaDemonstrativo colgroup col:nth-child(2) { width: 8%; }   /* Dotação Inicial */
+#tabelaDemonstrativo colgroup col:nth-child(3) { width: 8%; }   /* Dotação Atualizada */
+#tabelaDemonstrativo colgroup col:nth-child(4) { width: 7%; }   /* Empenhada Anterior */
+#tabelaDemonstrativo colgroup col:nth-child(5) { width: 7%; }   /* Empenhada Atual */
+#tabelaDemonstrativo colgroup col:nth-child(6) { width: 5%; }   /* Var % Empenhada */
+#tabelaDemonstrativo colgroup col:nth-child(7) { width: 7%; }   /* Liquidada Anterior */
+#tabelaDemonstrativo colgroup col:nth-child(8) { width: 7%; }   /* Liquidada Atual */
+#tabelaDemonstrativo colgroup col:nth-child(9) { width: 5%; }   /* Var % Liquidada */
+#tabelaDemonstrativo colgroup col:nth-child(10) { width: 7%; }  /* Paga Anterior */
+#tabelaDemonstrativo colgroup col:nth-child(11) { width: 7%; }  /* Paga Atual */
+#tabelaDemonstrativo colgroup col:nth-child(12) { width: 5%; }  /* Var % Paga */
+#tabelaDemonstrativo colgroup col:nth-child(13) { width: 7%; }  /* Saldo */
 
 /* ========================================
    TABELAS - CABEÇALHO
@@ -546,63 +562,92 @@ body {
 .variacao-positiva::before { content: "▲ "; }
 .variacao-negativa::before { content: "▼ "; }
 
-/* Linhas de detalhe expandidas - TRs normais da tabela principal */
+/* Linhas de detalhe expandidas - Linhas normais da tabela principal */
 tr.detalhe-item {
     animation: slideDown 0.3s ease;
     background-color: #fafbfc;
 }
 
-/* Primeira coluna dos detalhes - com indentação */
+/* Primeira coluna dos detalhes - com indentação maior */
 tr.detalhe-item td:first-child {
-    padding-left: 3rem !important;
-    font-size: 0.8rem;
+    padding-left: 3.5rem !important;
+    font-size: 0.78rem;
     color: #495057;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* Manter estilos de todas as colunas */
+/* Garantir que todas as células sigam o mesmo padrão da tabela principal */
 tr.detalhe-item td {
     border: 1px solid #e0e0e0;
     padding: 8px 6px;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     vertical-align: middle;
 }
 
+/* Colunas numéricas alinhadas à direita */
 tr.detalhe-item td:not(:first-child) {
     text-align: right;
     white-space: nowrap;
+    font-family: 'Courier New', monospace;
 }
 
-/* Aplicar cores de fundo nas colunas de despesas */
+/* Aplicar cores de fundo nas colunas de despesas - MESMAS POSIÇÕES DA TABELA PRINCIPAL */
 tr.detalhe-item td:nth-child(4),
 tr.detalhe-item td:nth-child(5),
 tr.detalhe-item td:nth-child(6) {
-    background-color: rgba(243, 156, 18, 0.08) !important;
+    background-color: rgba(243, 156, 18, 0.05) !important;
 }
 
 tr.detalhe-item td:nth-child(7),
 tr.detalhe-item td:nth-child(8),
 tr.detalhe-item td:nth-child(9) {
-    background-color: rgba(52, 152, 219, 0.08) !important;
+    background-color: rgba(52, 152, 219, 0.05) !important;
 }
 
 tr.detalhe-item td:nth-child(10),
 tr.detalhe-item td:nth-child(11),
 tr.detalhe-item td:nth-child(12) {
-    background-color: rgba(155, 89, 182, 0.08) !important;
+    background-color: rgba(155, 89, 182, 0.05) !important;
 }
 
-/* Hover nas linhas de detalhe */
-tr.detalhe-item:hover td {
-    background-color: #e9ecef !important;
+/* Hover nas linhas de detalhe - mantém cores de fundo */
+tr.detalhe-item:hover {
+    background-color: #e8ecef;
+}
+
+tr.detalhe-item:hover td:nth-child(4),
+tr.detalhe-item:hover td:nth-child(5),
+tr.detalhe-item:hover td:nth-child(6) {
+    background-color: rgba(243, 156, 18, 0.12) !important;
+}
+
+tr.detalhe-item:hover td:nth-child(7),
+tr.detalhe-item:hover td:nth-child(8),
+tr.detalhe-item:hover td:nth-child(9) {
+    background-color: rgba(52, 152, 219, 0.12) !important;
+}
+
+tr.detalhe-item:hover td:nth-child(10),
+tr.detalhe-item:hover td:nth-child(11),
+tr.detalhe-item:hover td:nth-child(12) {
+    background-color: rgba(155, 89, 182, 0.12) !important;
 }
 
 /* Valores do ano anterior */
 tr.detalhe-item .valor-ano-anterior {
     font-style: italic;
-    opacity: 0.9;
+    opacity: 0.85;
 }
 
-/* Variações */
+/* Variações em tamanho menor */
+tr.detalhe-item .variacao-positiva,
+tr.detalhe-item .variacao-negativa,
+tr.detalhe-item .variacao-neutra {
+    font-size: 0.7rem;
+}
+
 tr.detalhe-item .variacao-positiva {
     color: #27ae60;
     font-weight: 600;
@@ -619,12 +664,12 @@ tr.detalhe-item .variacao-neutra {
 
 tr.detalhe-item .variacao-positiva::before {
     content: "▲ ";
-    font-size: 0.65rem;
+    font-size: 0.6rem;
 }
 
 tr.detalhe-item .variacao-negativa::before {
     content: "▼ ";
-    font-size: 0.65rem;
+    font-size: 0.6rem;
 }
 
 /* Linha de total */
