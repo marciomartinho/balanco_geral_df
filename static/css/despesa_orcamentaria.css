@@ -1,7 +1,7 @@
 /* ============================================
    Estilos para Despesa Orçamentária
    Sistema de Balanço Geral DF
-   VERSÃO COMPLETA COM TELA CHEIA
+   VERSÃO COM TABELAS PADRONIZADAS
    ============================================ */
 
 /* ========================================
@@ -142,7 +142,7 @@ body {
 }
 
 /* ========================================
-   CARDS DE RESUMO - LINHA ÚNICA
+   CARDS DE RESUMO
    ======================================== */
 
 #summaryCards {
@@ -244,6 +244,18 @@ body {
 }
 
 /* ========================================
+   BADGE UG SELECIONADA
+   ======================================== */
+
+#ugSelecionada {
+    font-size: 0.9rem;
+    padding: 8px 15px;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    border: none;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+/* ========================================
    BOTÕES DE AÇÃO
    ======================================== */
 
@@ -311,7 +323,7 @@ body {
 }
 
 /* ========================================
-   CONTAINER DA TABELA - LARGURA TOTAL
+   CONTAINER DAS TABELAS
    ======================================== */
 
 .data-table-container {
@@ -334,88 +346,123 @@ body {
     font-size: 1.1rem;
 }
 
-/* Remove scroll horizontal desnecessário */
 .table-responsive {
-    overflow-x: visible !important;
+    overflow-x: auto;
     width: 100%;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* ========================================
-   TABELA DEMONSTRATIVO - OTIMIZADA
+   ESTILOS GERAIS PARA AMBAS AS TABELAS
    ======================================== */
 
-#tabelaDemonstrativo {
+#tabelaDemonstrativo,
+#tabelaCreditos {
     width: 100%;
-    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.85rem;
 }
 
-/* Largura das colunas */
-#tabelaDemonstrativo thead th:first-child {
-    width: 25%;
-    text-align: left;
-    padding-left: 20px;
-}
-
-#tabelaDemonstrativo thead th:not(:first-child) {
-    width: 12.5%;
-}
-
-#tabelaDemonstrativo thead th {
+/* CABEÇALHO DAS TABELAS */
+#tabelaDemonstrativo thead th,
+#tabelaCreditos thead th {
     background: linear-gradient(135deg, #2c3e50, #34495e);
     color: white;
     font-weight: 600;
     text-align: center;
     vertical-align: middle;
-    padding: 12px 6px;
+    padding: 12px 8px;
     font-size: 0.8rem;
     letter-spacing: 0.3px;
     border: none;
     white-space: normal;
-    line-height: 1.2;
+    line-height: 1.3;
 }
 
-#tabelaDemonstrativo tbody tr {
+/* Primeira coluna dos cabeçalhos */
+#tabelaDemonstrativo thead th:first-child,
+#tabelaCreditos thead th:first-child {
+    width: 25%;
+    text-align: left;
+    padding-left: 20px;
+}
+
+/* CORPO DAS TABELAS */
+#tabelaDemonstrativo tbody tr,
+#tabelaCreditos tbody tr {
     transition: background-color 0.2s;
 }
 
-#tabelaDemonstrativo tbody tr:hover {
+#tabelaDemonstrativo tbody tr:hover,
+#tabelaCreditos tbody tr:hover {
     background-color: #f8f9fa;
 }
 
-#tabelaDemonstrativo tbody tr.categoria-row {
+/* Linhas de categoria */
+#tabelaDemonstrativo tbody tr.categoria-row,
+#tabelaCreditos tbody tr.categoria-row {
     font-weight: bold;
     background: #ecf0f1;
 }
 
-#tabelaDemonstrativo tbody tr.grupo-row {
+#tabelaDemonstrativo tbody tr.categoria-row td:first-child,
+#tabelaCreditos tbody tr.categoria-row td:first-child {
+    padding-left: 20px;
+}
+
+/* Linhas de grupo */
+#tabelaDemonstrativo tbody tr.grupo-row,
+#tabelaCreditos tbody tr.grupo-row {
     background: #ffffff;
 }
 
-#tabelaDemonstrativo tbody tr.grupo-row td:first-child {
-    padding-left: 35px;
+#tabelaDemonstrativo tbody tr.grupo-row td:first-child,
+#tabelaCreditos tbody tr.grupo-row td:first-child {
+    padding-left: 40px;
     font-size: 0.83rem;
 }
 
-#tabelaDemonstrativo tbody tr.total-row {
+/* Linha de total */
+#tabelaDemonstrativo tbody tr.total-row,
+#tabelaCreditos tbody tr.total-row {
     font-weight: bold;
-    background: linear-gradient(135deg, #34495e, #2c3e50);
-    color: white;
+    background: #2c3e50 !important;
     position: sticky;
     bottom: 0;
     z-index: 10;
 }
 
-#tabelaDemonstrativo tbody td {
+#tabelaDemonstrativo tbody tr.total-row:hover,
+#tabelaCreditos tbody tr.total-row:hover {
+    background: #34495e !important;
+}
+
+#tabelaDemonstrativo tbody tr.total-row td,
+#tabelaCreditos tbody tr.total-row td {
+    color: white !important;
+    border-bottom: none;
+    font-weight: bold !important;
+    background: transparent !important;
+}
+
+#tabelaDemonstrativo tbody tr.total-row td strong,
+#tabelaCreditos tbody tr.total-row td strong {
+    color: white !important;
+}
+
+/* Células do corpo */
+#tabelaDemonstrativo tbody td,
+#tabelaCreditos tbody td {
     vertical-align: middle;
-    padding: 10px 6px;
+    padding: 10px 8px;
     border-bottom: 1px solid #e0e0e0;
     font-size: 0.83rem;
 }
 
-#tabelaDemonstrativo tbody td:not(:first-child) {
+/* Células numéricas */
+#tabelaDemonstrativo tbody td:not(:first-child),
+#tabelaCreditos tbody td:not(:first-child) {
     text-align: right;
     white-space: nowrap;
     font-family: 'Segoe UI', Tahoma, sans-serif;
@@ -423,9 +470,26 @@ body {
     letter-spacing: -0.3px;
 }
 
-.valor-negativo, .text-danger {
+/* Valores negativos */
+.text-danger {
     color: #e74c3c !important;
     font-weight: 600;
+}
+
+/* ========================================
+   AJUSTES ESPECÍFICOS PARA TABELA DE CRÉDITOS
+   ======================================== */
+
+/* A tabela de créditos tem mais colunas, então ajustamos a largura */
+#tabelaCreditos thead th:not(:first-child) {
+    width: auto;
+    font-size: 0.75rem;
+    padding: 10px 6px;
+}
+
+#tabelaCreditos tbody td:not(:first-child) {
+    padding: 8px 6px;
+    font-size: 0.8rem;
 }
 
 /* ========================================
@@ -543,6 +607,17 @@ footer p {
     padding: 10px;
 }
 
+/* Ajustes para tabelas em tela cheia */
+.fullscreen-mode #tabelaDemonstrativo,
+.fullscreen-mode #tabelaCreditos {
+    font-size: 0.9rem;
+}
+
+.fullscreen-mode #tabelaDemonstrativo tbody td,
+.fullscreen-mode #tabelaCreditos tbody td {
+    padding: 8px 6px;
+}
+
 /* ========================================
    ANIMAÇÕES
    ======================================== */
@@ -574,34 +649,61 @@ footer p {
    ======================================== */
 
 /* Telas grandes */
-@media (min-width: 1200px) {
-    #tabelaDemonstrativo {
-        font-size: 0.88rem;
+@media (min-width: 1400px) {
+    #tabelaDemonstrativo,
+    #tabelaCreditos {
+        font-size: 0.9rem;
     }
     
-    #tabelaDemonstrativo tbody td:not(:first-child) {
-        font-size: 0.85rem;
+    #tabelaDemonstrativo tbody td:not(:first-child),
+    #tabelaCreditos tbody td:not(:first-child) {
+        font-size: 0.88rem;
     }
 }
 
-/* Tablets */
+/* Telas médias */
 @media (max-width: 1199px) {
-    #tabelaDemonstrativo {
+    #tabelaDemonstrativo,
+    #tabelaCreditos {
         font-size: 0.8rem;
     }
     
-    #tabelaDemonstrativo thead th {
+    #tabelaDemonstrativo thead th,
+    #tabelaCreditos thead th {
         padding: 10px 5px;
         font-size: 0.75rem;
     }
     
-    #tabelaDemonstrativo tbody td {
+    #tabelaDemonstrativo tbody td,
+    #tabelaCreditos tbody td {
         padding: 8px 5px;
         font-size: 0.78rem;
     }
     
+    /* Tabela de créditos ainda menor */
+    #tabelaCreditos thead th:not(:first-child) {
+        font-size: 0.7rem;
+        padding: 8px 4px;
+    }
+    
+    #tabelaCreditos tbody td:not(:first-child) {
+        font-size: 0.75rem;
+        padding: 7px 4px;
+    }
+}
+
+/* Tablets */
+@media (max-width: 991px) {
     .table-responsive {
         overflow-x: auto !important;
+    }
+    
+    #tabelaDemonstrativo {
+        min-width: 800px;
+    }
+    
+    #tabelaCreditos {
+        min-width: 1000px;
     }
 }
 
@@ -646,14 +748,21 @@ footer p {
         margin-bottom: 10px;
     }
     
-    .table-responsive {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch;
+    #tabelaDemonstrativo,
+    #tabelaCreditos {
+        font-size: 0.72rem;
     }
     
-    #tabelaDemonstrativo {
-        min-width: 700px;
-        font-size: 0.72rem;
+    #tabelaDemonstrativo thead th,
+    #tabelaCreditos thead th {
+        font-size: 0.68rem;
+        padding: 8px 4px;
+    }
+    
+    #tabelaDemonstrativo tbody td,
+    #tabelaCreditos tbody td {
+        font-size: 0.7rem;
+        padding: 6px 4px;
     }
     
     .btn-group {
@@ -685,7 +794,42 @@ footer p {
         font-size: 1.05rem;
     }
     
-    #tabelaDemonstrativo {
+    #tabelaDemonstrativo,
+    #tabelaCreditos {
         font-size: 0.68rem;
+    }
+    
+    #tabelaDemonstrativo tbody td,
+    #tabelaCreditos tbody td {
+        font-size: 0.66rem;
+        padding: 5px 3px;
+    }
+}
+
+/* ========================================
+   IMPRESSÃO
+   ======================================== */
+
+@media print {
+    .navbar, .dashboard-header, footer, .btn-group, .btn-fullscreen, .filter-card {
+        display: none !important;
+    }
+    
+    .data-table-container {
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+        page-break-inside: avoid;
+    }
+    
+    #tabelaDemonstrativo, #tabelaCreditos {
+        font-size: 10pt !important;
+    }
+    
+    #tabelaDemonstrativo thead th,
+    #tabelaCreditos thead th {
+        background: #000 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 }
