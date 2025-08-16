@@ -1,310 +1,220 @@
 """
-Blueprint de rotas para Despesa Orçamentária
-Define os endpoints da API e páginas web
+Rotas para Despesa Orçamentária - Versão 2.0
+Endpoints simplificados que apenas chamam o serviço
 """
 
 from flask import Blueprint, render_template, jsonify, request, send_file
 from services.despesa_orcamentaria_service import DespesaOrcamentariaService
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Criar o Blueprint
+# Blueprint
 despesa_orcamentaria_bp = Blueprint(
     'despesa_orcamentaria',
     __name__,
     url_prefix='/despesa-orcamentaria'
 )
 
-# Instanciar o serviço
+# Instância única do serviço
 despesa_service = DespesaOrcamentariaService()
 
-# ==================== ROTAS DE PÁGINAS ====================
+# ============================================
+# ROTAS DE PÁGINAS (Views)
+# ============================================
 
 @despesa_orcamentaria_bp.route('/')
 def index():
-    """Página principal do módulo de despesa orçamentária"""
+    """Página principal com tabelas comparativas"""
     return render_template('despesa_orcamentaria/index.html')
 
 @despesa_orcamentaria_bp.route('/dashboard')
 def dashboard():
-    """Dashboard com visualizações de dados"""
+    """Dashboard com gráficos"""
     return render_template('despesa_orcamentaria/dashboard.html')
 
 @despesa_orcamentaria_bp.route('/relatorio')
 def relatorio():
-    """Página de relatório detalhado"""
+    """Relatório detalhado"""
     return render_template('despesa_orcamentaria/relatorio.html')
 
-# ==================== ROTAS DA API ====================
+# ============================================
+# API PRINCIPAL - Endpoint único para dados
+# ============================================
+
+@despesa_orcamentaria_bp.route('/api/dados-completos', methods=['POST'])
+def api_dados_completos():
+    """
+    Endpoint PRINCIPAL - retorna TODOS os dados processados
+    
+    Recebe:
+    {
+        "exercicio": 2025,
+        "mes": 8,
+        "ug": "110101" ou "CONSOLIDADO"
+    }
+    
+    Retorna:
+    {
+        "success": true,
+        "exercicio_atual": 2025,
+        "exercicio_anterior": 2024,
+        "demonstrativo": {
+            "categorias": [...],
+            "total_geral": {...}
+        },
+        "creditos": {
+            "categorias": [...],
+            "total_geral": {...}
+        },
+        "totais": {...}
+    }
+    """
+    try:
+        # Pegar parâmetros do request
+        data = request.get_json() or {}
+        
+        # Debug: log dos dados recebidos
+        logger.info(f"📥 Dados recebidos: {data}")
+        
+        exercicio = data.get('exercicio')
+        mes = data.get('mes')
+        ug = data.get('ug', 'CONSOLIDADO')
+        
+        # Converter para int se vier como string
+        if isinstance(exercicio, str):
+            exercicio = int(exercicio)
+        if isinstance(mes, str):
+            mes = int(mes)
+        
+        # Valores padrão se não vieram
+        if exercicio is None:
+            exercicio = 2025
+        if mes is None:
+            mes = 12
+            
+        # Validar parâmetros
+        if not isinstance(exercicio, int) or exercicio < 2000 or exercicio > 2050:
+            logger.error(f"❌ Exercício inválido: {exercicio}")
+            return jsonify({
+                'success': False,
+                'message': f'Exercício inválido: {exercicio}'
+            }), 400
+        
+        if not isinstance(mes, int) or mes < 1 or mes > 12:
+            logger.error(f"❌ Mês inválido: {mes}")
+            return jsonify({
+                'success': False,
+                'message': f'Mês inválido: {mes}'
+            }), 400
+        
+        logger.info(f"📊 Processando: Exercício {exercicio}, Mês {mes}, UG {ug}")
+        
+        # Chamar o serviço que faz TUDO
+        resultado = despesa_service.processar_dados_comparativo(
+            exercicio=exercicio,
+            mes=mes,
+            ug=ug if ug != 'CONSOLIDADO' else None
+        )
+        
+        # Log do resultado
+        if resultado.get('success'):
+            logger.info(f"✅ Processamento OK - {resultado.get('total_registros_atual', 0)} registros")
+        else:
+            logger.warning(f"⚠️ Processamento com problemas: {resultado.get('message', 'Sem mensagem')}")
+        
+        # Retornar resultado
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar dados: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao processar dados: {str(e)}'
+        }), 500
+
+# ============================================
+# API - Endpoints auxiliares
+# ============================================
 
 @despesa_orcamentaria_bp.route('/api/ugs', methods=['GET'])
 def api_listar_ugs():
     """
-    Endpoint específico para listar UGs com movimentação financeira
+    Lista UGs disponíveis
     
-    Query Params:
-    - todas: se 'true', retorna todas as UGs (mesmo sem movimento)
+    Query params:
+    - todas: 'true' para listar todas, 'false' para apenas com movimento
     """
     try:
-        logger.info("Buscando lista de UGs...")
-        
-        # Verificar se deve mostrar todas ou apenas com movimento
         mostrar_todas = request.args.get('todas', 'false').lower() == 'true'
         
-        # Buscar dados do cache/banco
-        df = despesa_service.executar_consulta()
+        logger.info(f"🔍 Buscando UGs (todas={mostrar_todas})")
         
-        if df is not None and not df.empty:
-            if mostrar_todas:
-                # Mostrar todas as UGs
-                ugs = despesa_service.obter_lista_ugs()
-            else:
-                # Mostrar apenas UGs com movimentação
-                ugs = despesa_service.obter_ugs_com_movimento(df)
-            
-            if ugs:
-                return jsonify({
-                    'success': True,
-                    'unidades_gestoras': ugs,
-                    'total': len(ugs),
-                    'filtrado': not mostrar_todas
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'message': 'Nenhuma UG com movimentação encontrada',
-                    'unidades_gestoras': []
-                }), 404
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado disponível',
-                'unidades_gestoras': []
-            }), 404
-            
-    except Exception as e:
-        logger.error(f"Erro ao buscar UGs: {e}")
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@despesa_orcamentaria_bp.route('/api/consultar', methods=['POST'])
-def api_consultar():
-    """
-    Endpoint para executar consulta de despesa orçamentária
-    
-    Body JSON:
-    {
-        "exercicio_inicial": 2024,
-        "exercicio_final": 2025,
-        "mes_limite": 5,
-        "use_cache": true
-    }
-    """
-    try:
-        data = request.get_json()
-        
-        # Parâmetros com valores padrão
-        exercicio_inicial = data.get('exercicio_inicial', 2024)
-        exercicio_final = data.get('exercicio_final', 2025)
-        mes_limite = data.get('mes_limite', 5)
-        use_cache = data.get('use_cache', True)
-        
-        # Executar consulta
-        df = despesa_service.executar_consulta(
-            exercicio_inicial=exercicio_inicial,
-            exercicio_final=exercicio_final,
-            mes_limite=mes_limite,
-            use_cache=use_cache
+        ugs = despesa_service.obter_ugs_disponiveis(
+            apenas_com_movimento=not mostrar_todas
         )
-        
-        if df is not None and not df.empty:
-            # Obter resumo
-            resumo = despesa_service.obter_resumo_financeiro(df)
-            
-            return jsonify({
-                'success': True,
-                'resumo': resumo,
-                'message': f'{len(df)} registros encontrados'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado encontrado'
-            }), 404
-            
-    except Exception as e:
-        logger.error(f"Erro na consulta: {e}")
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@despesa_orcamentaria_bp.route('/api/dados', methods=['GET'])
-def api_obter_dados():
-    """
-    Endpoint para obter dados paginados
-    
-    Query Params:
-    - pagina: número da página (padrão: 1)
-    - registros: registros por página (padrão: 100)
-    - ug: código da unidade gestora (opcional)
-    """
-    try:
-        # Parâmetros da query
-        pagina = request.args.get('pagina', 1, type=int)
-        registros_por_pagina = request.args.get('registros', 100, type=int)
-        coug = request.args.get('ug', None)
-        
-        # Primeiro executar consulta básica (usando cache)
-        df = despesa_service.executar_consulta()
-        
-        if df is None or df.empty:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado disponível'
-            }), 404
-        
-        # Filtrar por UG se necessário
-        if coug and coug != 'CONSOLIDADO':
-            df = despesa_service.obter_dados_por_ug(df, coug)
-        
-        # Paginar dados
-        df_paginado, info_paginacao = despesa_service.obter_dados_paginados(
-            df, pagina, registros_por_pagina
-        )
-        
-        # Converter DataFrame para dict
-        dados = df_paginado.to_dict('records')
         
         return jsonify({
             'success': True,
-            'dados': dados,
-            'paginacao': info_paginacao
+            'unidades_gestoras': ugs,
+            'total': len(ugs),
+            'filtrado': not mostrar_todas
         })
         
     except Exception as e:
-        logger.error(f"Erro ao obter dados: {e}")
+        logger.error(f"❌ Erro ao buscar UGs: {e}")
         return jsonify({
             'success': False,
-            'message': str(e)
-        }), 500
-
-@despesa_orcamentaria_bp.route('/api/resumo', methods=['GET'])
-def api_resumo():
-    """Endpoint para obter apenas o resumo financeiro"""
-    try:
-        # Executar consulta (usando cache)
-        df = despesa_service.executar_consulta()
-        
-        if df is None or df.empty:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado disponível'
-            }), 404
-        
-        resumo = despesa_service.obter_resumo_financeiro(df)
-        
-        return jsonify({
-            'success': True,
-            'resumo': resumo
-        })
-        
-    except Exception as e:
-        logger.error(f"Erro ao obter resumo: {e}")
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@despesa_orcamentaria_bp.route('/api/filtros', methods=['GET'])
-def api_filtros():
-    """
-    Endpoint para obter filtros disponíveis
-    
-    Query Params:
-    - todas_ugs: se 'true', retorna todas as UGs (mesmo sem movimento)
-    """
-    try:
-        # Verificar se deve mostrar todas as UGs
-        todas_ugs = request.args.get('todas_ugs', 'false').lower() == 'true'
-        
-        # Buscar dados
-        df = despesa_service.executar_consulta()
-        
-        if df is not None and not df.empty:
-            # Obter filtros com opção de UGs
-            filtros = despesa_service.obter_filtros_disponiveis(
-                df, 
-                apenas_com_movimento=not todas_ugs
-            )
-            
-            return jsonify({
-                'success': True,
-                'filtros': filtros,
-                'ugs_filtradas': not todas_ugs
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado disponível'
-            }), 404
-        
-    except Exception as e:
-        logger.error(f"Erro ao obter filtros: {e}")
-        return jsonify({
-            'success': False,
-            'message': str(e)
+            'message': str(e),
+            'unidades_gestoras': []
         }), 500
 
 @despesa_orcamentaria_bp.route('/api/exportar', methods=['POST'])
 def api_exportar():
     """
-    Endpoint para exportar dados
+    Exporta dados processados
     
-    Body JSON:
+    Recebe:
     {
-        "formato": "excel" ou "csv",
-        "nome_arquivo": "opcional",
-        "ug": "codigo_ug" (opcional)
+        "exercicio": 2025,
+        "mes": 8,
+        "ug": "110101",
+        "formato": "excel" ou "csv"
     }
     """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
+        
+        exercicio = data.get('exercicio', 2025)
+        mes = data.get('mes', 12)
+        ug = data.get('ug', 'CONSOLIDADO')
         formato = data.get('formato', 'excel')
-        nome_arquivo = data.get('nome_arquivo', None)
-        coug = data.get('ug', None)
         
-        # Executar consulta (usando cache)
-        df = despesa_service.executar_consulta()
+        logger.info(f"📁 Exportando: {formato.upper()} - Exercício {exercicio}, Mês {mes}, UG {ug}")
         
-        if df is None or df.empty:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado para exportar'
-            }), 404
+        # Chamar serviço de exportação
+        filepath = despesa_service.exportar_dados_processados(
+            exercicio=exercicio,
+            mes=mes,
+            ug=ug if ug != 'CONSOLIDADO' else None,
+            formato=formato
+        )
         
-        # Filtrar por UG se especificado
-        if coug and coug != 'CONSOLIDADO':
-            df = despesa_service.obter_dados_por_ug(df, coug)
-            if nome_arquivo and coug not in nome_arquivo:
-                nome_arquivo = f"{nome_arquivo}_UG_{coug}"
-        
-        # Exportar
-        filepath = despesa_service.exportar_dados(df, formato, nome_arquivo)
-        
-        if filepath:
-            return send_file(filepath, as_attachment=True)
+        if filepath and Path(filepath).exists():
+            return send_file(
+                filepath,
+                as_attachment=True,
+                download_name=Path(filepath).name
+            )
         else:
             return jsonify({
                 'success': False,
-                'message': 'Erro ao exportar arquivo'
+                'message': 'Erro ao gerar arquivo'
             }), 500
             
     except Exception as e:
-        logger.error(f"Erro ao exportar: {e}")
+        logger.error(f"❌ Erro ao exportar: {e}")
         return jsonify({
             'success': False,
             'message': str(e)
@@ -312,48 +222,159 @@ def api_exportar():
 
 @despesa_orcamentaria_bp.route('/api/cache/limpar', methods=['POST'])
 def api_limpar_cache():
-    """Endpoint para limpar o cache"""
+    """Limpa o cache de dados"""
     try:
         despesa_service.limpar_cache()
+        
         return jsonify({
             'success': True,
             'message': 'Cache limpo com sucesso'
         })
+        
     except Exception as e:
-        logger.error(f"Erro ao limpar cache: {e}")
+        logger.error(f"❌ Erro ao limpar cache: {e}")
         return jsonify({
             'success': False,
             'message': str(e)
         }), 500
 
-@despesa_orcamentaria_bp.route('/api/por-ug', methods=['GET'])
-def api_dados_por_ug():
-    """Endpoint para obter dados agrupados por UG"""
+@despesa_orcamentaria_bp.route('/api/cache/status', methods=['GET'])
+def api_cache_status():
+    """Verifica status do cache"""
     try:
-        # Executar consulta (usando cache)
-        df = despesa_service.executar_consulta()
+        tem_cache = False
+        tamanho_cache = 0
         
-        if df is None or df.empty:
-            return jsonify({
-                'success': False,
-                'message': 'Nenhum dado disponível'
-            }), 404
-        
-        # Agrupar por UG
-        df_agrupado = despesa_service.obter_dados_por_ug(df)
-        
-        # Converter para dict
-        dados = df_agrupado.to_dict('records')
+        if despesa_service.cache:
+            tem_cache = despesa_service.cache.existe()
+            if tem_cache:
+                df = despesa_service.cache.carregar()
+                if df is not None:
+                    tamanho_cache = len(df)
         
         return jsonify({
             'success': True,
-            'dados': dados,
-            'total_ugs': len(dados)
+            'cache_ativo': tem_cache,
+            'registros_em_cache': tamanho_cache
         })
         
     except Exception as e:
-        logger.error(f"Erro ao agrupar por UG: {e}")
+        logger.error(f"❌ Erro ao verificar cache: {e}")
         return jsonify({
             'success': False,
             'message': str(e)
         }), 500
+
+# ============================================
+# API - Endpoints de compatibilidade (legado)
+# ============================================
+
+@despesa_orcamentaria_bp.route('/api/dados', methods=['GET'])
+def api_dados_legado():
+    """
+    Endpoint legado para compatibilidade
+    Redireciona para o novo endpoint
+    """
+    try:
+        # Pegar parâmetros e converter para o novo formato
+        exercicio = int(request.args.get('exercicio', 2025))
+        mes = int(request.args.get('mes', 12))
+        ug = request.args.get('ug', 'CONSOLIDADO')
+        
+        # Chamar o serviço
+        resultado = despesa_service.processar_dados_comparativo(
+            exercicio=exercicio,
+            mes=mes,
+            ug=ug if ug != 'CONSOLIDADO' else None
+        )
+        
+        # Adaptar resposta para formato legado (simplificado)
+        if resultado['success']:
+            # Extrair apenas dados do ano atual para compatibilidade
+            dados_simplificados = []
+            
+            for categoria in resultado['demonstrativo']['categorias']:
+                # Adicionar categoria
+                dados_simplificados.append({
+                    'CATEGORIA': categoria['id'],
+                    'NOCATEGORIA': categoria['nome'],
+                    'TIPO': 'CATEGORIA',
+                    **categoria['valores_atual']
+                })
+                
+                # Adicionar grupos
+                for grupo in categoria['grupos']:
+                    dados_simplificados.append({
+                        'CATEGORIA': categoria['id'],
+                        'GRUPO': grupo['id'],
+                        'NOGRUPO': grupo['nome'],
+                        'TIPO': 'GRUPO',
+                        **grupo['valores_atual']
+                    })
+            
+            return jsonify({
+                'success': True,
+                'dados': dados_simplificados,
+                'total': len(dados_simplificados)
+            })
+        else:
+            return jsonify(resultado), 404
+            
+    except Exception as e:
+        logger.error(f"❌ Erro no endpoint legado: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+# ============================================
+# Tratamento de erros
+# ============================================
+
+@despesa_orcamentaria_bp.errorhandler(404)
+def not_found(error):
+    """Tratamento para rotas não encontradas"""
+    return jsonify({
+        'success': False,
+        'message': 'Endpoint não encontrado'
+    }), 404
+
+@despesa_orcamentaria_bp.errorhandler(500)
+def internal_error(error):
+    """Tratamento para erros internos"""
+    logger.error(f"Erro interno: {error}")
+    return jsonify({
+        'success': False,
+        'message': 'Erro interno do servidor'
+    }), 500
+
+# ============================================
+# Healthcheck
+# ============================================
+
+@despesa_orcamentaria_bp.route('/api/health', methods=['GET'])
+def api_health():
+    """Verifica saúde do serviço"""
+    try:
+        # Testar conexão com banco
+        from config.database import get_db_manager
+        db = get_db_manager()
+        
+        with db.get_cursor() as cursor:
+            cursor.execute("SELECT 1 FROM DUAL")
+            cursor.fetchone()
+        
+        return jsonify({
+            'success': True,
+            'status': 'healthy',
+            'service': 'despesa_orcamentaria',
+            'database': 'connected'
+        })
+        
+    except Exception as e:
+        logger.error(f"Healthcheck falhou: {e}")
+        return jsonify({
+            'success': False,
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 503
