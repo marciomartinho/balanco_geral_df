@@ -125,17 +125,8 @@
                     </button>
                 </div>
             </div>
-            <!-- Nova opção de comparação -->
-            <div class="row mt-3">
-                <div class="col-md-12">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="compararAnoAnterior" checked>
-                        <label class="form-check-label" for="compararAnoAnterior">
-                            <i class="fas fa-balance-scale"></i> Comparar com ano anterior (análise vertical)
-                        </label>
-                    </div>
-                </div>
-            </div>
+            <!-- Comparação sempre ativa (sem checkbox) -->
+            <input type="hidden" id="compararAnoAnterior" value="true">
         </div>
 
         <!-- Summary Cards -->
@@ -197,6 +188,10 @@
                         <i class="fas fa-sync-alt"></i> 
                         Limpar Cache
                     </button>
+                    <button class="btn btn-secondary" onclick="toggleExpandirTodos()">
+                        <i class="fas fa-expand-alt"></i> 
+                        <span id="btnExpandirTexto">Expandir Todos</span>
+                    </button>
                     <button class="btn btn-secondary" onclick="window.location.href='/despesa-orcamentaria/dashboard'">
                         <i class="fas fa-chart-bar"></i> 
                         Ver Dashboard
@@ -212,7 +207,7 @@
                 Demonstrativo Comparativo da Despesa Orçamentária
                 <span id="tituloUG" class="badge bg-secondary ms-2" style="display: none;"></span>
             </h5>
-            <div class="alert alert-info mb-3" id="infoPeriodoComparacao" style="display: none;">
+            <div class="alert alert-info mb-3" id="infoPeriodoComparacao">
                 <i class="fas fa-info-circle"></i>
                 <strong>Período de Comparação:</strong> 
                 <span id="textoPeriodoComparacao"></span>
@@ -284,7 +279,7 @@
             </div>
         </div>
 
-        <!-- NOVO: Quadro por Tipos de Créditos Adicionais -->
+        <!-- QUADRO DE CRÉDITOS ADICIONAIS -->
         <div class="data-table-container mt-4">
             <h5>
                 <i class="fas fa-file-invoice-dollar"></i> 
@@ -354,7 +349,7 @@
                     <i class="fas fa-info-circle"></i>
                     <strong>Informação:</strong> 
                     Os dados são atualizados diariamente e representam a execução orçamentária até o mês selecionado.
-                    A comparação com o ano anterior considera o mesmo período (até o mesmo mês).
+                    Clique no botão <i class="fas fa-plus-square"></i> ao lado dos grupos para ver o detalhamento por natureza e fonte.
                 </div>
             </div>
         </div>
@@ -372,11 +367,6 @@
         </div>
     </footer>
 
-    <!-- Botão de Tela Cheia -->
-    <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Modo Tela Cheia">
-        <i class="fas fa-expand" id="fullscreenIcon"></i>
-    </button>
-
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery (necessário para Select2) -->
@@ -389,33 +379,31 @@
     
     <!-- Scripts inline (funcionalidades específicas da página) -->
     <script>
-        function toggleFullscreen() {
-            const body = document.body;
-            const icon = document.getElementById('fullscreenIcon');
+        // Função para expandir/colapsar todos os grupos
+        let todosExpandidos = false;
+        
+        function toggleExpandirTodos() {
+            todosExpandidos = !todosExpandidos;
+            const btnTexto = document.getElementById('btnExpandirTexto');
             
-            if (body.classList.contains('fullscreen-mode')) {
-                // Sair do modo tela cheia
-                body.classList.remove('fullscreen-mode');
-                icon.classList.remove('fa-compress');
-                icon.classList.add('fa-expand');
+            if (todosExpandidos) {
+                // Expandir todos
+                document.querySelectorAll('.btn-collapse').forEach(btn => {
+                    if (btn.querySelector('i').classList.contains('fa-plus-square')) {
+                        btn.click();
+                    }
+                });
+                btnTexto.textContent = 'Colapsar Todos';
             } else {
-                // Entrar no modo tela cheia
-                body.classList.add('fullscreen-mode');
-                icon.classList.remove('fa-expand');
-                icon.classList.add('fa-compress');
-                
-                // Scroll para o topo
-                window.scrollTo(0, 0);
+                // Colapsar todos
+                document.querySelectorAll('.btn-collapse').forEach(btn => {
+                    if (btn.querySelector('i').classList.contains('fa-minus-square')) {
+                        btn.click();
+                    }
+                });
+                btnTexto.textContent = 'Expandir Todos';
             }
         }
-        
-        // Atalho de teclado (F9)
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'F9') {
-                e.preventDefault();
-                toggleFullscreen();
-            }
-        });
         
         // Inicialização do Select2 para UG
         $(document).ready(function() {
@@ -429,8 +417,7 @@
         
         // Log de inicialização
         console.log('Página carregada:', new Date().toLocaleString('pt-BR'));
-        console.log('Versão do Sistema: 4.0 - Com Análise Comparativa');
-        console.log('Dica: Pressione F9 para modo tela cheia');
+        console.log('Versão do Sistema: 5.0 - Com Detalhamento Expansível');
     </script>
 </body>
 </html>

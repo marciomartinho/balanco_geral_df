@@ -1,7 +1,7 @@
 /**
- * tabelas.js - Renderização de Tabelas com Comparação de Anos
+ * tabelas.js - Renderização de Tabelas COM Comparação de Anos
  * Sistema de Despesa Orçamentária
- * Versão 4.0 - Com análise comparativa vertical
+ * Versão 5.0 - Com comparação vertical e detalhamento expansível
  */
 
 import Formatadores from './formatadores.js';
@@ -12,7 +12,7 @@ import Filtros from './filtros.js';
  * Renderizador da Tabela de Demonstrativo Comparativo
  */
 const TabelaDemonstrativo = {
-    renderizar: function(dadosAnoAtual, dadosAnoAnterior = null) {
+    renderizar: function(dadosAnoAtual, dadosAnoAnterior) {
         console.log('📊 Renderizando tabela demonstrativo comparativa...');
         
         const tbody = document.getElementById('tabelaCorpo');
@@ -23,13 +23,10 @@ const TabelaDemonstrativo = {
 
         tbody.innerHTML = '';
 
-        // Verificar se deve fazer comparação
-        const compararAnos = document.getElementById('compararAnoAnterior')?.checked ?? true;
-        
         if (!dadosAnoAtual || dadosAnoAtual.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="${compararAnos ? '13' : '7'}" class="text-center py-4">
+                    <td colspan="13" class="text-center py-4">
                         <i class="fas fa-inbox text-muted"></i>
                         <p class="text-muted mt-2">Nenhum dado disponível para o período selecionado</p>
                     </td>
@@ -42,13 +39,10 @@ const TabelaDemonstrativo = {
 
         // Agregar dados
         const agregadosAtual = this.agregarDados(dadosAnoAtual);
-        const agregadosAnterior = compararAnos && dadosAnoAnterior ? 
-            this.agregarDados(dadosAnoAnterior) : null;
+        const agregadosAnterior = dadosAnoAnterior ? this.agregarDados(dadosAnoAnterior) : null;
 
         // Renderizar linhas comparativas
-        const totalGeral = compararAnos ? 
-            this.renderizarLinhasComparativas(tbody, agregadosAtual, agregadosAnterior) :
-            this.renderizarLinhasSimples(tbody, agregadosAtual);
+        const totalGeral = this.renderizarLinhasComparativas(tbody, agregadosAtual, agregadosAnterior);
         
         return totalGeral;
     },
@@ -71,15 +65,6 @@ const TabelaDemonstrativo = {
         document.querySelectorAll('#anoAnteriorEmpenhada, #anoAnteriorLiquidada, #anoAnteriorPaga').forEach(el => {
             if (el) el.textContent = exercicioAnterior;
         });
-
-        // Atualizar período de comparação
-        const infoPeriodo = document.getElementById('infoPeriodoComparacao');
-        const textoPeriodo = document.getElementById('textoPeriodoComparacao');
-        
-        if (infoPeriodo && textoPeriodo) {
-            infoPeriodo.style.display = 'block';
-            textoPeriodo.textContent = `Comparando Jan-${nomeMes}/${exercicio} com Jan-${nomeMes}/${exercicioAnterior}`;
-        }
     },
 
     agregarDados: function(dados) {
@@ -136,7 +121,6 @@ const TabelaDemonstrativo = {
         
         const variacao = ((valorAtual / valorAnterior) - 1) * 100;
         
-        // Sempre positiva ou negativa baseado no sinal, não no valor
         let classe = 'variacao-neutra';
         if (variacao > 0) {
             classe = 'variacao-positiva';
@@ -186,7 +170,7 @@ const TabelaDemonstrativo = {
                 this.somarAoTotal(totalGeralAnterior, valoresAnterior);
             }
 
-            // Renderizar grupos
+            // Renderizar grupos com botão de expansão
             const ordemGrupos = catId === '3' ? ['1', '2', '3'] : 
                                catId === '4' ? ['4', '5', '6'] : [];
 
@@ -199,12 +183,14 @@ const TabelaDemonstrativo = {
                 const dotAtualGrupo = this.calcularDotacaoAtualizada(grupoAtual.valores);
                 const saldoGrupo = dotAtualGrupo - grupoAtual.valores.despesa_empenhada;
 
-                tbody.appendChild(this.criarLinhaGrupoComparativa(
+                tbody.appendChild(this.criarLinhaGrupoComparativaComBotao(
                     grupoAtual.nome, 
                     grupoAtual.valores, 
                     grupoAnterior,
                     dotAtualGrupo, 
-                    saldoGrupo
+                    saldoGrupo,
+                    catId,
+                    grupoId
                 ));
             });
         });
@@ -255,7 +241,7 @@ const TabelaDemonstrativo = {
         return tr;
     },
 
-    criarLinhaGrupoComparativa: function(nome, valoresAtual, valoresAnterior, dotacaoAtualizada, saldo) {
+    criarLinhaGrupoComparativaComBotao: function(nome, valoresAtual, valoresAnterior, dotacaoAtualizada, saldo, catId, grupoId) {
         const varEmpenhada = this.calcularVariacao(valoresAtual.despesa_empenhada, valoresAnterior.despesa_empenhada);
         const varLiquidada = this.calcularVariacao(valoresAtual.despesa_liquidada, valoresAnterior.despesa_liquidada);
         const varPaga = this.calcularVariacao(valoresAtual.despesa_paga, valoresAnterior.despesa_paga);
@@ -263,7 +249,15 @@ const TabelaDemonstrativo = {
         const tr = document.createElement('tr');
         tr.className = 'grupo-row';
         tr.innerHTML = `
-            <td class="ps-4">${nome}</td>
+            <td>
+                <button class="btn btn-sm btn-link p-0 me-2 btn-collapse" 
+                        id="btn-${catId}-${grupoId}"
+                        onclick="toggleGrupoDetalhes('${catId}', '${grupoId}')"
+                        style="width: 20px; text-align: center;">
+                    <i class="fas fa-plus-square text-primary"></i>
+                </button>
+                <span style="padding-left: 10px;">${nome}</span>
+            </td>
             <td class="text-end">${Formatadores.moeda(valoresAtual.dotacao_inicial)}</td>
             <td class="text-end">${Formatadores.moeda(dotacaoAtualizada)}</td>
             <td class="text-end valor-ano-anterior col-empenhada">${Formatadores.moeda(valoresAnterior.despesa_empenhada)}</td>
@@ -307,98 +301,6 @@ const TabelaDemonstrativo = {
         return tr;
     },
 
-    renderizarLinhasSimples: function(tbody, agregados) {
-        // Renderização sem comparação (mantém formato original)
-        const totalGeral = Filtros.criarObjetoValores();
-
-        ['3', '4', '9'].forEach(catId => {
-            const categoria = agregados[catId];
-            if (!categoria) return;
-
-            const valores = categoria.valores;
-            if (this.isValoresVazios(valores)) return;
-
-            const dotacaoAtualizada = this.calcularDotacaoAtualizada(valores);
-            const saldo = dotacaoAtualizada - valores.despesa_empenhada;
-
-            tbody.appendChild(this.criarLinhaCategoria(categoria.nome, valores, dotacaoAtualizada, saldo));
-            this.somarAoTotal(totalGeral, valores);
-
-            const ordemGrupos = catId === '3' ? ['1', '2', '3'] : 
-                               catId === '4' ? ['4', '5', '6'] : [];
-
-            ordemGrupos.forEach(grupoId => {
-                const grupo = categoria.grupos[grupoId];
-                if (!grupo || this.isValoresVazios(grupo.valores)) return;
-
-                const dotAtualGrupo = this.calcularDotacaoAtualizada(grupo.valores);
-                const saldoGrupo = dotAtualGrupo - grupo.valores.despesa_empenhada;
-
-                tbody.appendChild(this.criarLinhaGrupo(grupo.nome, grupo.valores, dotAtualGrupo, saldoGrupo));
-            });
-        });
-
-        const dotacaoAtualizadaTotal = this.calcularDotacaoAtualizada(totalGeral);
-        const saldoTotal = dotacaoAtualizadaTotal - totalGeral.despesa_empenhada;
-        tbody.appendChild(this.criarLinhaTotal(totalGeral, dotacaoAtualizadaTotal, saldoTotal));
-        
-        return {
-            dotacao_inicial: totalGeral.dotacao_inicial,
-            dotacao_atualizada: dotacaoAtualizadaTotal,
-            despesa_empenhada: totalGeral.despesa_empenhada,
-            despesa_liquidada: totalGeral.despesa_liquidada,
-            despesa_paga: totalGeral.despesa_paga,
-            saldo: saldoTotal
-        };
-    },
-
-    criarLinhaCategoria: function(nome, valores, dotacaoAtualizada, saldo) {
-        const tr = document.createElement('tr');
-        tr.className = 'categoria-row';
-        tr.innerHTML = `
-            <td><strong>${nome}</strong></td>
-            <td class="text-end">${Formatadores.moeda(valores.dotacao_inicial)}</td>
-            <td class="text-end">${Formatadores.moeda(dotacaoAtualizada)}</td>
-            <td class="text-end">${Formatadores.moeda(valores.despesa_empenhada)}</td>
-            <td class="text-end">${Formatadores.moeda(valores.despesa_liquidada)}</td>
-            <td class="text-end">${Formatadores.moeda(valores.despesa_paga)}</td>
-            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}">${Formatadores.moeda(saldo)}</td>
-        `;
-        return tr;
-    },
-
-    criarLinhaGrupo: function(nome, valores, dotacaoAtualizada, saldo) {
-        const tr = document.createElement('tr');
-        tr.className = 'grupo-row';
-        tr.innerHTML = `
-            <td class="ps-4">${nome}</td>
-            <td class="text-end">${Formatadores.moeda(valores.dotacao_inicial)}</td>
-            <td class="text-end">${Formatadores.moeda(dotacaoAtualizada)}</td>
-            <td class="text-end">${Formatadores.moeda(valores.despesa_empenhada)}</td>
-            <td class="text-end">${Formatadores.moeda(valores.despesa_liquidada)}</td>
-            <td class="text-end">${Formatadores.moeda(valores.despesa_paga)}</td>
-            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}">${Formatadores.moeda(saldo)}</td>
-        `;
-        return tr;
-    },
-
-    criarLinhaTotal: function(valores, dotacaoAtualizada, saldo) {
-        const tr = document.createElement('tr');
-        tr.className = 'total-row';
-        tr.innerHTML = `
-            <td><strong>TOTAL GERAL</strong></td>
-            <td class="text-end"><strong>${Formatadores.moeda(valores.dotacao_inicial)}</strong></td>
-            <td class="text-end"><strong>${Formatadores.moeda(dotacaoAtualizada)}</strong></td>
-            <td class="text-end"><strong>${Formatadores.moeda(valores.despesa_empenhada)}</strong></td>
-            <td class="text-end"><strong>${Formatadores.moeda(valores.despesa_liquidada)}</strong></td>
-            <td class="text-end"><strong>${Formatadores.moeda(valores.despesa_paga)}</strong></td>
-            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}">
-                <strong>${Formatadores.moeda(saldo)}</strong>
-            </td>
-        `;
-        return tr;
-    },
-
     isValoresVazios: function(valores) {
         return valores.dotacao_inicial === 0 && 
                valores.despesa_empenhada === 0 &&
@@ -425,7 +327,7 @@ const TabelaDemonstrativo = {
 };
 
 /**
- * Renderizador da Tabela de Créditos (mantém original)
+ * Renderizador da Tabela de Créditos
  */
 const TabelaCreditos = {
     renderizar: function(dados) {
