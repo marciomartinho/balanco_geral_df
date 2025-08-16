@@ -1,7 +1,7 @@
 /**
- * main.js - Arquivo Principal (Orquestrador)
+ * main.js - Arquivo Principal com Comparação de Anos
  * Sistema de Despesa Orçamentária
- * Versão 3.0 - Refatorada com módulos
+ * Versão 4.0 - Com análise comparativa vertical
  */
 
 import { AppConfig, AppState } from './config.js';
@@ -12,11 +12,11 @@ import Filtros from './filtros.js';
 import { TabelaDemonstrativo, TabelaCreditos } from './tabelas.js';
 
 // ============================================================================
-// FUNÇÃO PRINCIPAL DE CONSULTA
+// FUNÇÃO PRINCIPAL DE CONSULTA COMPARATIVA
 // ============================================================================
 
 async function consultarDados() {
-    console.log('========== INICIANDO CONSULTA ==========');
+    console.log('========== INICIANDO CONSULTA COMPARATIVA ==========');
     console.log('Timestamp:', Formatadores.dataHora());
 
     try {
@@ -27,11 +27,16 @@ async function consultarDados() {
         const exercicio = parseInt(document.getElementById('exercicio').value);
         const mes = parseInt(document.getElementById('mes').value);
         const ug = document.getElementById('unidadeGestora').value;
+        const compararAnos = document.getElementById('compararAnoAnterior')?.checked ?? true;
+
+        // Calcular exercício anterior
+        const exercicioAnterior = exercicio - 1;
 
         console.log(`📅 Filtros selecionados:`);
         console.log(`   - Exercício: ${exercicio}`);
         console.log(`   - Mês: ${mes} (${Formatadores.nomeMes(mes)})`);
         console.log(`   - UG: ${ug === 'CONSOLIDADO' ? 'CONSOLIDADO (todas)' : ug}`);
+        console.log(`   - Comparar com ${exercicioAnterior}: ${compararAnos ? 'Sim' : 'Não'}`);
 
         // Atualizar interface
         UI.atualizarBadgeUG(ug);
@@ -49,53 +54,88 @@ async function consultarDados() {
             }
         }
 
-        // Aplicar filtros
-        UI.toggleLoading(true, 'Aplicando filtros...');
-        const dadosFiltrados = Filtros.filtrarDados(dados, { 
+        // Aplicar filtros para ano atual
+        UI.toggleLoading(true, 'Filtrando dados do ano atual...');
+        const dadosFiltradosAtual = Filtros.filtrarDados(dados, { 
             exercicio, 
             mes,
             ug
         });
 
-        // Calcular totais
-        const totais = Filtros.calcularTotais(dadosFiltrados);
-        AppState.totaisCalculados = totais;
-        
-        // Atualizar cards
-        UI.removerLoadingCards();
-        UI.atualizarValorCard('totalRegistros', Formatadores.numero(dadosFiltrados.length));
-        UI.atualizarValorCard('dotacaoInicial', Formatadores.moedaCompacta(totais.dotacao_inicial));
-        UI.atualizarValorCard('despesaEmpenhada', Formatadores.moedaCompacta(totais.despesa_empenhada));
-        UI.atualizarValorCard('despesaPaga', Formatadores.moedaCompacta(totais.despesa_paga));
+        // Se comparação ativada, buscar dados do ano anterior
+        let dadosFiltradosAnterior = null;
+        if (compararAnos) {
+            UI.toggleLoading(true, `Filtrando dados de ${exercicioAnterior}...`);
+            dadosFiltradosAnterior = Filtros.filtrarDados(dados, { 
+                exercicio: exercicioAnterior, 
+                mes,
+                ug
+            });
 
-        // Renderizar tabelas
-        UI.toggleLoading(true, 'Montando demonstrativo...');
-        const totaisTabela = TabelaDemonstrativo.renderizar(dadosFiltrados);
+            console.log(`📊 Dados ${exercicioAnterior}: ${dadosFiltradosAnterior.length} registros`);
+        }
+
+        // Calcular totais
+        const totaisAtual = Filtros.calcularTotais(dadosFiltradosAtual);
+        AppState.totaisCalculados = totaisAtual;
+
+        let totaisAnterior = null;
+        if (dadosFiltradosAnterior) {
+            totaisAnterior = Filtros.calcularTotais(dadosFiltradosAnterior);
+        }
+        
+        // Atualizar cards com comparação
+        UI.removerLoadingCards();
+        atualizarCardsComComparacao(dadosFiltradosAtual, dadosFiltradosAnterior, totaisAtual, totaisAnterior);
+
+        // Renderizar tabelas comparativas
+        UI.toggleLoading(true, 'Montando demonstrativo comparativo...');
+        const totaisTabela = TabelaDemonstrativo.renderizar(dadosFiltradosAtual, dadosFiltradosAnterior);
 
         UI.toggleLoading(true, 'Montando quadro de créditos...');
-        const totaisCreditos = TabelaCreditos.renderizar(dadosFiltrados);
+        const totaisCreditos = TabelaCreditos.renderizar(dadosFiltradosAtual);
+
+        // Mostrar informações de comparação
+        mostrarInfoComparacao(exercicio, exercicioAnterior, mes, compararAnos);
 
         // Debug info
         if (AppConfig.debug) {
-            console.log('===== RESUMO DA CONSULTA =====');
-            console.log('Total de registros:', dadosFiltrados.length);
+            console.log('===== RESUMO DA CONSULTA COMPARATIVA =====');
+            console.log(`Total de registros ${exercicio}:`, dadosFiltradosAtual.length);
+            if (dadosFiltradosAnterior) {
+                console.log(`Total de registros ${exercicioAnterior}:`, dadosFiltradosAnterior.length);
+            }
             
             if (ug !== 'CONSOLIDADO') {
                 const ugInfo = AppState.listaUGs?.find(u => u.codigo === ug);
                 console.log('UG Selecionada:', ugInfo ? `${ugInfo.codigo} - ${ugInfo.nome}` : ug);
             }
             
-            console.log('Valores calculados:');
-            console.log('   Dotação:', Formatadores.moedaCompacta(totais.dotacao_inicial));
-            console.log('   Empenhada:', Formatadores.moedaCompacta(totais.despesa_empenhada));
-            console.log('   Paga:', Formatadores.moedaCompacta(totais.despesa_paga));
+            console.log(`Valores ${exercicio}:`);
+            console.log('   Dotação:', Formatadores.moedaCompacta(totaisAtual.dotacao_inicial));
+            console.log('   Empenhada:', Formatadores.moedaCompacta(totaisAtual.despesa_empenhada));
+            console.log('   Paga:', Formatadores.moedaCompacta(totaisAtual.despesa_paga));
             
-            if (AppState.totaisCreditos) {
-                console.log('Créditos Adicionais:');
-                console.log('   Total Alterações:', Formatadores.moedaCompacta(AppState.totaisCreditos.total_alteracoes));
+            if (totaisAnterior) {
+                console.log(`Valores ${exercicioAnterior}:`);
+                console.log('   Dotação:', Formatadores.moedaCompacta(totaisAnterior.dotacao_inicial));
+                console.log('   Empenhada:', Formatadores.moedaCompacta(totaisAnterior.despesa_empenhada));
+                console.log('   Paga:', Formatadores.moedaCompacta(totaisAnterior.despesa_paga));
+                
+                // Calcular variações
+                const varEmpenhada = totaisAnterior.despesa_empenhada > 0 ? 
+                    ((totaisAtual.despesa_empenhada / totaisAnterior.despesa_empenhada - 1) * 100).toFixed(1) : 
+                    'N/A';
+                const varPaga = totaisAnterior.despesa_paga > 0 ? 
+                    ((totaisAtual.despesa_paga / totaisAnterior.despesa_paga - 1) * 100).toFixed(1) : 
+                    'N/A';
+                
+                console.log('Variações:');
+                console.log(`   Empenhada: ${varEmpenhada}%`);
+                console.log(`   Paga: ${varPaga}%`);
             }
             
-            console.log('================================');
+            console.log('============================================');
         }
 
         AppState.ultimaConsulta = new Date();
@@ -113,7 +153,81 @@ async function consultarDados() {
 }
 
 // ============================================================================
-// FUNÇÕES DE EXPORTAÇÃO
+// FUNÇÕES DE COMPARAÇÃO
+// ============================================================================
+
+function atualizarCardsComComparacao(dadosAtual, dadosAnterior, totaisAtual, totaisAnterior) {
+    // Card de registros
+    const textoRegistros = dadosAnterior ? 
+        `${Formatadores.numero(dadosAtual.length)} (${dadosAnterior.length} em ${new Date().getFullYear() - 1})` :
+        Formatadores.numero(dadosAtual.length);
+    UI.atualizarValorCard('totalRegistros', textoRegistros);
+
+    // Card de dotação inicial
+    UI.atualizarValorCard('dotacaoInicial', Formatadores.moedaCompacta(totaisAtual.dotacao_inicial));
+
+    // Card de despesa empenhada com variação
+    let textoEmpenhada = Formatadores.moedaCompacta(totaisAtual.despesa_empenhada);
+    if (totaisAnterior && totaisAnterior.despesa_empenhada > 0) {
+        const varEmpenhada = ((totaisAtual.despesa_empenhada / totaisAnterior.despesa_empenhada - 1) * 100).toFixed(1);
+        const sinalEmpenhada = varEmpenhada > 0 ? '▲' : '▼';
+        const corEmpenhada = varEmpenhada > 0 ? 'green' : 'red';
+        
+        // Adicionar variação ao card
+        const cardEmpenhada = document.getElementById('despesaEmpenhada');
+        if (cardEmpenhada) {
+            cardEmpenhada.innerHTML = `${textoEmpenhada} <small style="color: ${corEmpenhada}; display: block; font-size: 0.75rem; margin-top: 5px;">${sinalEmpenhada} ${Math.abs(varEmpenhada)}%</small>`;
+        }
+    } else {
+        UI.atualizarValorCard('despesaEmpenhada', textoEmpenhada);
+    }
+
+    // Card de despesa paga com variação
+    let textoPaga = Formatadores.moedaCompacta(totaisAtual.despesa_paga);
+    if (totaisAnterior && totaisAnterior.despesa_paga > 0) {
+        const varPaga = ((totaisAtual.despesa_paga / totaisAnterior.despesa_paga - 1) * 100).toFixed(1);
+        const sinalPaga = varPaga > 0 ? '▲' : '▼';
+        const corPaga = varPaga > 0 ? 'green' : 'red';
+        
+        // Adicionar variação ao card
+        const cardPaga = document.getElementById('despesaPaga');
+        if (cardPaga) {
+            cardPaga.innerHTML = `${textoPaga} <small style="color: ${corPaga}; display: block; font-size: 0.75rem; margin-top: 5px;">${sinalPaga} ${Math.abs(varPaga)}%</small>`;
+        }
+    } else {
+        UI.atualizarValorCard('despesaPaga', textoPaga);
+    }
+}
+
+function mostrarInfoComparacao(exercicio, exercicioAnterior, mes, ativo) {
+    const infoPeriodo = document.getElementById('infoPeriodoComparacao');
+    const textoPeriodo = document.getElementById('textoPeriodoComparacao');
+    
+    if (infoPeriodo && textoPeriodo) {
+        if (ativo) {
+            infoPeriodo.style.display = 'block';
+            const nomeMes = Formatadores.nomeMes(mes);
+            textoPeriodo.textContent = `Comparando Janeiro-${nomeMes}/${exercicio} com Janeiro-${nomeMes}/${exercicioAnterior}`;
+        } else {
+            infoPeriodo.style.display = 'none';
+        }
+    }
+}
+
+// ============================================================================
+// EVENT LISTENER PARA TOGGLE DE COMPARAÇÃO
+// ============================================================================
+
+function toggleComparacao() {
+    const checkbox = document.getElementById('compararAnoAnterior');
+    if (checkbox) {
+        console.log(`📊 Comparação de anos: ${checkbox.checked ? 'Ativada' : 'Desativada'}`);
+        consultarDados();
+    }
+}
+
+// ============================================================================
+// FUNÇÕES DE EXPORTAÇÃO (mantém original)
 // ============================================================================
 
 async function exportarDados(formato) {
@@ -121,7 +235,15 @@ async function exportarDados(formato) {
         UI.toggleLoading(true, `Exportando para ${formato.toUpperCase()}...`);
 
         const ug = document.getElementById('unidadeGestora').value;
-        let nomeArquivo = `despesa_orcamentaria_${new Date().toISOString().slice(0,10)}`;
+        const exercicio = document.getElementById('exercicio').value;
+        const mes = document.getElementById('mes').value;
+        const compararAnos = document.getElementById('compararAnoAnterior')?.checked ?? true;
+        
+        let nomeArquivo = `despesa_orcamentaria_${exercicio}_mes${mes}_${new Date().toISOString().slice(0,10)}`;
+        
+        if (compararAnos) {
+            nomeArquivo += '_comparativo';
+        }
         
         if (ug && ug !== 'CONSOLIDADO') {
             nomeArquivo += `_UG_${ug}`;
@@ -218,16 +340,6 @@ function debugDespesa() {
         });
     }
     
-    if (AppState.totaisCreditos) {
-        console.log('Totais de Créditos:', {
-            credito_suplementar: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_suplementar),
-            credito_especial_aberto: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_especial_aberto),
-            credito_especial_reaberto: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_especial_reaberto),
-            credito_extraordinario_reaberto: Formatadores.moedaCompacta(AppState.totaisCreditos.credito_extraordinario_reaberto),
-            total_alteracoes: Formatadores.moedaCompacta(AppState.totaisCreditos.total_alteracoes)
-        });
-    }
-    
     console.log('========================================');
 }
 
@@ -255,7 +367,7 @@ function listarUGs() {
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('===== APLICAÇÃO INICIADA =====');
     console.log('Timestamp:', Formatadores.dataHora());
-    console.log('Versão: 3.0 - Refatorada com Módulos');
+    console.log('Versão: 4.0 - Com Análise Comparativa');
     console.log('Debug:', AppConfig.debug ? 'ATIVADO' : 'DESATIVADO');
     
     // Verificar elementos essenciais
@@ -284,10 +396,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Configurar event listeners
     const selectExercicio = document.getElementById('exercicio');
     const selectMes = document.getElementById('mes');
+    const checkboxComparar = document.getElementById('compararAnoAnterior');
     
     if (selectExercicio) {
         selectExercicio.addEventListener('change', async function() {
-            console.log('📅 Exercício alterado, recarregando UGs...');
+            console.log('📅 Exercício alterado, recarregando dados...');
             
             const selectUG = document.getElementById('unidadeGestora');
             if (selectUG) {
@@ -301,7 +414,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     if (selectMes) {
         selectMes.addEventListener('change', async function() {
-            console.log('📅 Mês alterado, recarregando UGs...');
+            console.log('📅 Mês alterado, recarregando dados...');
             
             const selectUG = document.getElementById('unidadeGestora');
             if (selectUG) {
@@ -313,11 +426,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
     
+    if (checkboxComparar) {
+        checkboxComparar.addEventListener('change', toggleComparacao);
+    }
+    
     // Carregar dados iniciais
     console.log('📊 Carregando lista de UGs com movimentação...');
     await API.buscarUGs(false);
     
-    console.log('📊 Iniciando consulta automática...');
+    console.log('📊 Iniciando consulta automática com comparação...');
     await consultarDados();
     
     console.log('===== INICIALIZAÇÃO COMPLETA =====');
@@ -325,6 +442,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('   - debugDespesa() para ver estado da aplicação');
     console.log('   - listarUGs() para ver UGs carregadas');
     console.log('   - consultarDados() para recarregar dados');
+    console.log('   - Toggle comparação de anos no checkbox');
 });
 
 // ============================================================================
@@ -338,3 +456,4 @@ window.toggleTodasUGs = toggleTodasUGs;
 window.limparFiltroUG = limparFiltroUG;
 window.debugDespesa = debugDespesa;
 window.listarUGs = listarUGs;
+window.toggleComparacao = toggleComparacao;

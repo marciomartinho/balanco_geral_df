@@ -1,6 +1,7 @@
 /**
- * tabelas.js - Renderização de Tabelas
+ * tabelas.js - Renderização de Tabelas com Comparação de Anos
  * Sistema de Despesa Orçamentária
+ * Versão 4.0 - Com análise comparativa vertical
  */
 
 import Formatadores from './formatadores.js';
@@ -8,11 +9,11 @@ import { EstruturaCategorias, AppState } from './config.js';
 import Filtros from './filtros.js';
 
 /**
- * Renderizador da Tabela de Demonstrativo
+ * Renderizador da Tabela de Demonstrativo Comparativo
  */
 const TabelaDemonstrativo = {
-    renderizar: function(dados) {
-        console.log('📊 Renderizando tabela demonstrativo...');
+    renderizar: function(dadosAnoAtual, dadosAnoAnterior = null) {
+        console.log('📊 Renderizando tabela demonstrativo comparativa...');
         
         const tbody = document.getElementById('tabelaCorpo');
         if (!tbody) {
@@ -22,10 +23,13 @@ const TabelaDemonstrativo = {
 
         tbody.innerHTML = '';
 
-        if (!dados || dados.length === 0) {
+        // Verificar se deve fazer comparação
+        const compararAnos = document.getElementById('compararAnoAnterior')?.checked ?? true;
+        
+        if (!dadosAnoAtual || dadosAnoAtual.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center py-4">
+                    <td colspan="${compararAnos ? '13' : '7'}" class="text-center py-4">
                         <i class="fas fa-inbox text-muted"></i>
                         <p class="text-muted mt-2">Nenhum dado disponível para o período selecionado</p>
                     </td>
@@ -33,10 +37,49 @@ const TabelaDemonstrativo = {
             return;
         }
 
-        const agregados = this.agregarDados(dados);
-        const totalGeral = this.renderizarLinhas(tbody, agregados);
+        // Atualizar cabeçalhos com anos corretos
+        this.atualizarCabecalhosAnos();
+
+        // Agregar dados
+        const agregadosAtual = this.agregarDados(dadosAnoAtual);
+        const agregadosAnterior = compararAnos && dadosAnoAnterior ? 
+            this.agregarDados(dadosAnoAnterior) : null;
+
+        // Renderizar linhas comparativas
+        const totalGeral = compararAnos ? 
+            this.renderizarLinhasComparativas(tbody, agregadosAtual, agregadosAnterior) :
+            this.renderizarLinhasSimples(tbody, agregadosAtual);
         
         return totalGeral;
+    },
+
+    atualizarCabecalhosAnos: function() {
+        const exercicio = parseInt(document.getElementById('exercicio')?.value || new Date().getFullYear());
+        const exercicioAnterior = exercicio - 1;
+        const mes = parseInt(document.getElementById('mes')?.value || 12);
+        const nomeMes = Formatadores.nomeMes(mes);
+
+        // Atualizar anos nos cabeçalhos
+        document.querySelectorAll('#anoAtualDotacao, #anoAtualDotacaoAtual, #anoAtualSaldo').forEach(el => {
+            if (el) el.textContent = `(${exercicio})`;
+        });
+
+        document.querySelectorAll('#anoAtualEmpenhada, #anoAtualLiquidada, #anoAtualPaga').forEach(el => {
+            if (el) el.textContent = exercicio;
+        });
+
+        document.querySelectorAll('#anoAnteriorEmpenhada, #anoAnteriorLiquidada, #anoAnteriorPaga').forEach(el => {
+            if (el) el.textContent = exercicioAnterior;
+        });
+
+        // Atualizar período de comparação
+        const infoPeriodo = document.getElementById('infoPeriodoComparacao');
+        const textoPeriodo = document.getElementById('textoPeriodoComparacao');
+        
+        if (infoPeriodo && textoPeriodo) {
+            infoPeriodo.style.display = 'block';
+            textoPeriodo.textContent = `Comparando Jan-${nomeMes}/${exercicio} com Jan-${nomeMes}/${exercicioAnterior}`;
+        }
     },
 
     agregarDados: function(dados) {
@@ -85,10 +128,189 @@ const TabelaDemonstrativo = {
         agregado.despesa_paga += parseFloat(row.DESPESA_PAGA || 0);
     },
 
-    renderizarLinhas: function(tbody, agregados) {
-        const totalGeral = Filtros.criarObjetoValores();
+    calcularVariacao: function(valorAtual, valorAnterior) {
+        if (!valorAnterior || valorAnterior === 0) {
+            if (valorAtual > 0) return { percentual: 100.00, classe: 'variacao-positiva' };
+            return { percentual: 0, classe: 'variacao-neutra' };
+        }
+        
+        const variacao = ((valorAtual / valorAnterior) - 1) * 100;
+        
+        // Sempre positiva ou negativa baseado no sinal, não no valor
+        let classe = 'variacao-neutra';
+        if (variacao > 0) {
+            classe = 'variacao-positiva';
+        } else if (variacao < 0) {
+            classe = 'variacao-negativa';
+        }
+        
+        return { percentual: variacao, classe };
+    },
+
+    formatarVariacao: function(variacao) {
+        if (variacao.classe === 'variacao-neutra' && variacao.percentual === 0) {
+            return '-';
+        }
+        
+        const sinal = variacao.percentual > 0 ? '+' : '';
+        return `${sinal}${variacao.percentual.toFixed(2)}%`;
+    },
+
+    renderizarLinhasComparativas: function(tbody, agregadosAtual, agregadosAnterior) {
+        const totalGeralAtual = Filtros.criarObjetoValores();
+        const totalGeralAnterior = agregadosAnterior ? Filtros.criarObjetoValores() : null;
 
         // Renderizar categorias e grupos
+        ['3', '4', '9'].forEach(catId => {
+            const categoriaAtual = agregadosAtual[catId];
+            if (!categoriaAtual) return;
+
+            const valoresAtual = categoriaAtual.valores;
+            if (this.isValoresVazios(valoresAtual)) return;
+
+            const valoresAnterior = agregadosAnterior?.[catId]?.valores || Filtros.criarObjetoValores();
+            
+            const dotacaoAtualizadaAtual = this.calcularDotacaoAtualizada(valoresAtual);
+            const saldoAtual = dotacaoAtualizadaAtual - valoresAtual.despesa_empenhada;
+
+            tbody.appendChild(this.criarLinhaCategoriaComparativa(
+                categoriaAtual.nome, 
+                valoresAtual, 
+                valoresAnterior,
+                dotacaoAtualizadaAtual, 
+                saldoAtual
+            ));
+
+            this.somarAoTotal(totalGeralAtual, valoresAtual);
+            if (totalGeralAnterior && valoresAnterior) {
+                this.somarAoTotal(totalGeralAnterior, valoresAnterior);
+            }
+
+            // Renderizar grupos
+            const ordemGrupos = catId === '3' ? ['1', '2', '3'] : 
+                               catId === '4' ? ['4', '5', '6'] : [];
+
+            ordemGrupos.forEach(grupoId => {
+                const grupoAtual = categoriaAtual.grupos[grupoId];
+                if (!grupoAtual || this.isValoresVazios(grupoAtual.valores)) return;
+
+                const grupoAnterior = agregadosAnterior?.[catId]?.grupos[grupoId]?.valores || Filtros.criarObjetoValores();
+                
+                const dotAtualGrupo = this.calcularDotacaoAtualizada(grupoAtual.valores);
+                const saldoGrupo = dotAtualGrupo - grupoAtual.valores.despesa_empenhada;
+
+                tbody.appendChild(this.criarLinhaGrupoComparativa(
+                    grupoAtual.nome, 
+                    grupoAtual.valores, 
+                    grupoAnterior,
+                    dotAtualGrupo, 
+                    saldoGrupo
+                ));
+            });
+        });
+
+        // Renderizar total geral
+        const dotacaoAtualizadaTotal = this.calcularDotacaoAtualizada(totalGeralAtual);
+        const saldoTotal = dotacaoAtualizadaTotal - totalGeralAtual.despesa_empenhada;
+        
+        tbody.appendChild(this.criarLinhaTotalComparativa(
+            totalGeralAtual, 
+            totalGeralAnterior,
+            dotacaoAtualizadaTotal, 
+            saldoTotal
+        ));
+        
+        return {
+            dotacao_inicial: totalGeralAtual.dotacao_inicial,
+            dotacao_atualizada: dotacaoAtualizadaTotal,
+            despesa_empenhada: totalGeralAtual.despesa_empenhada,
+            despesa_liquidada: totalGeralAtual.despesa_liquidada,
+            despesa_paga: totalGeralAtual.despesa_paga,
+            saldo: saldoTotal
+        };
+    },
+
+    criarLinhaCategoriaComparativa: function(nome, valoresAtual, valoresAnterior, dotacaoAtualizada, saldo) {
+        const varEmpenhada = this.calcularVariacao(valoresAtual.despesa_empenhada, valoresAnterior.despesa_empenhada);
+        const varLiquidada = this.calcularVariacao(valoresAtual.despesa_liquidada, valoresAnterior.despesa_liquidada);
+        const varPaga = this.calcularVariacao(valoresAtual.despesa_paga, valoresAnterior.despesa_paga);
+
+        const tr = document.createElement('tr');
+        tr.className = 'categoria-row';
+        tr.innerHTML = `
+            <td><strong>${nome}</strong></td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.dotacao_inicial)}</td>
+            <td class="text-end">${Formatadores.moeda(dotacaoAtualizada)}</td>
+            <td class="text-end valor-ano-anterior col-empenhada">${Formatadores.moeda(valoresAnterior.despesa_empenhada)}</td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.despesa_empenhada)}</td>
+            <td class="text-end ${varEmpenhada.classe}">${this.formatarVariacao(varEmpenhada)}</td>
+            <td class="text-end valor-ano-anterior col-liquidada">${Formatadores.moeda(valoresAnterior.despesa_liquidada)}</td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.despesa_liquidada)}</td>
+            <td class="text-end ${varLiquidada.classe}">${this.formatarVariacao(varLiquidada)}</td>
+            <td class="text-end valor-ano-anterior col-paga">${Formatadores.moeda(valoresAnterior.despesa_paga)}</td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.despesa_paga)}</td>
+            <td class="text-end ${varPaga.classe}">${this.formatarVariacao(varPaga)}</td>
+            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}">${Formatadores.moeda(saldo)}</td>
+        `;
+        return tr;
+    },
+
+    criarLinhaGrupoComparativa: function(nome, valoresAtual, valoresAnterior, dotacaoAtualizada, saldo) {
+        const varEmpenhada = this.calcularVariacao(valoresAtual.despesa_empenhada, valoresAnterior.despesa_empenhada);
+        const varLiquidada = this.calcularVariacao(valoresAtual.despesa_liquidada, valoresAnterior.despesa_liquidada);
+        const varPaga = this.calcularVariacao(valoresAtual.despesa_paga, valoresAnterior.despesa_paga);
+
+        const tr = document.createElement('tr');
+        tr.className = 'grupo-row';
+        tr.innerHTML = `
+            <td class="ps-4">${nome}</td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.dotacao_inicial)}</td>
+            <td class="text-end">${Formatadores.moeda(dotacaoAtualizada)}</td>
+            <td class="text-end valor-ano-anterior col-empenhada">${Formatadores.moeda(valoresAnterior.despesa_empenhada)}</td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.despesa_empenhada)}</td>
+            <td class="text-end ${varEmpenhada.classe}">${this.formatarVariacao(varEmpenhada)}</td>
+            <td class="text-end valor-ano-anterior col-liquidada">${Formatadores.moeda(valoresAnterior.despesa_liquidada)}</td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.despesa_liquidada)}</td>
+            <td class="text-end ${varLiquidada.classe}">${this.formatarVariacao(varLiquidada)}</td>
+            <td class="text-end valor-ano-anterior col-paga">${Formatadores.moeda(valoresAnterior.despesa_paga)}</td>
+            <td class="text-end">${Formatadores.moeda(valoresAtual.despesa_paga)}</td>
+            <td class="text-end ${varPaga.classe}">${this.formatarVariacao(varPaga)}</td>
+            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}">${Formatadores.moeda(saldo)}</td>
+        `;
+        return tr;
+    },
+
+    criarLinhaTotalComparativa: function(valoresAtual, valoresAnterior, dotacaoAtualizada, saldo) {
+        const varEmpenhada = this.calcularVariacao(valoresAtual.despesa_empenhada, valoresAnterior?.despesa_empenhada || 0);
+        const varLiquidada = this.calcularVariacao(valoresAtual.despesa_liquidada, valoresAnterior?.despesa_liquidada || 0);
+        const varPaga = this.calcularVariacao(valoresAtual.despesa_paga, valoresAnterior?.despesa_paga || 0);
+
+        const tr = document.createElement('tr');
+        tr.className = 'total-row';
+        tr.innerHTML = `
+            <td><strong>TOTAL GERAL</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.dotacao_inicial)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(dotacaoAtualizada)}</strong></td>
+            <td class="text-end valor-ano-anterior col-empenhada"><strong>${Formatadores.moeda(valoresAnterior?.despesa_empenhada || 0)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.despesa_empenhada)}</strong></td>
+            <td class="text-end ${varEmpenhada.classe}"><strong>${this.formatarVariacao(varEmpenhada)}</strong></td>
+            <td class="text-end valor-ano-anterior col-liquidada"><strong>${Formatadores.moeda(valoresAnterior?.despesa_liquidada || 0)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.despesa_liquidada)}</strong></td>
+            <td class="text-end ${varLiquidada.classe}"><strong>${this.formatarVariacao(varLiquidada)}</strong></td>
+            <td class="text-end valor-ano-anterior col-paga"><strong>${Formatadores.moeda(valoresAnterior?.despesa_paga || 0)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.despesa_paga)}</strong></td>
+            <td class="text-end ${varPaga.classe}"><strong>${this.formatarVariacao(varPaga)}</strong></td>
+            <td class="text-end ${saldo < 0 ? 'text-danger' : ''}">
+                <strong>${Formatadores.moeda(saldo)}</strong>
+            </td>
+        `;
+        return tr;
+    },
+
+    renderizarLinhasSimples: function(tbody, agregados) {
+        // Renderização sem comparação (mantém formato original)
+        const totalGeral = Filtros.criarObjetoValores();
+
         ['3', '4', '9'].forEach(catId => {
             const categoria = agregados[catId];
             if (!categoria) return;
@@ -102,7 +324,6 @@ const TabelaDemonstrativo = {
             tbody.appendChild(this.criarLinhaCategoria(categoria.nome, valores, dotacaoAtualizada, saldo));
             this.somarAoTotal(totalGeral, valores);
 
-            // Renderizar grupos
             const ordemGrupos = catId === '3' ? ['1', '2', '3'] : 
                                catId === '4' ? ['4', '5', '6'] : [];
 
@@ -117,7 +338,6 @@ const TabelaDemonstrativo = {
             });
         });
 
-        // Renderizar total geral
         const dotacaoAtualizadaTotal = this.calcularDotacaoAtualizada(totalGeral);
         const saldoTotal = dotacaoAtualizadaTotal - totalGeral.despesa_empenhada;
         tbody.appendChild(this.criarLinhaTotal(totalGeral, dotacaoAtualizadaTotal, saldoTotal));
@@ -130,30 +350,6 @@ const TabelaDemonstrativo = {
             despesa_paga: totalGeral.despesa_paga,
             saldo: saldoTotal
         };
-    },
-
-    isValoresVazios: function(valores) {
-        return valores.dotacao_inicial === 0 && 
-               valores.despesa_empenhada === 0 &&
-               valores.despesa_liquidada === 0 &&
-               valores.despesa_paga === 0;
-    },
-
-    calcularDotacaoAtualizada: function(valores) {
-        return valores.dotacao_inicial + 
-               valores.dotacao_adicional + 
-               valores.cancelamento_dotacao + 
-               valores.cancel_remaneja_dotacao;
-    },
-
-    somarAoTotal: function(total, valores) {
-        total.dotacao_inicial += valores.dotacao_inicial;
-        total.dotacao_adicional += valores.dotacao_adicional;
-        total.cancelamento_dotacao += valores.cancelamento_dotacao;
-        total.cancel_remaneja_dotacao += valores.cancel_remaneja_dotacao;
-        total.despesa_empenhada += valores.despesa_empenhada;
-        total.despesa_liquidada += valores.despesa_liquidada;
-        total.despesa_paga += valores.despesa_paga;
     },
 
     criarLinhaCategoria: function(nome, valores, dotacaoAtualizada, saldo) {
@@ -201,11 +397,35 @@ const TabelaDemonstrativo = {
             </td>
         `;
         return tr;
+    },
+
+    isValoresVazios: function(valores) {
+        return valores.dotacao_inicial === 0 && 
+               valores.despesa_empenhada === 0 &&
+               valores.despesa_liquidada === 0 &&
+               valores.despesa_paga === 0;
+    },
+
+    calcularDotacaoAtualizada: function(valores) {
+        return valores.dotacao_inicial + 
+               valores.dotacao_adicional + 
+               valores.cancelamento_dotacao + 
+               valores.cancel_remaneja_dotacao;
+    },
+
+    somarAoTotal: function(total, valores) {
+        total.dotacao_inicial += valores.dotacao_inicial;
+        total.dotacao_adicional += valores.dotacao_adicional;
+        total.cancelamento_dotacao += valores.cancelamento_dotacao;
+        total.cancel_remaneja_dotacao += valores.cancel_remaneja_dotacao;
+        total.despesa_empenhada += valores.despesa_empenhada;
+        total.despesa_liquidada += valores.despesa_liquidada;
+        total.despesa_paga += valores.despesa_paga;
     }
 };
 
 /**
- * Renderizador da Tabela de Créditos
+ * Renderizador da Tabela de Créditos (mantém original)
  */
 const TabelaCreditos = {
     renderizar: function(dados) {
