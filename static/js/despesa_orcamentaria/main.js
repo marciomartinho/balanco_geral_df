@@ -1,8 +1,8 @@
 /**
- * main.js - Sistema de Despesa Orçamentária v2.0
+ * main.js - Sistema de Despesa Orçamentária v3.0
  * 
+ * Com funcionalidade de filtros por grupo/categoria
  * APENAS RENDERIZAÇÃO - toda lógica está no backend Python
- * O JavaScript só recebe dados prontos e renderiza na tela
  */
 
 // ============================================================================
@@ -14,12 +14,16 @@ const Config = {
     debug: true
 };
 
-// Estado da aplicação (dados vindos do backend)
+// Estado da aplicação
 let Estado = {
     dadosCompletos: null,
     exercicioAtual: null,
     exercicioAnterior: null,
-    ugSelecionada: null
+    ugSelecionada: null,
+    filtrosAtivos: {
+        categorias: [],
+        grupos: []
+    }
 };
 
 // ============================================================================
@@ -89,6 +93,264 @@ const Formatadores = {
 };
 
 // ============================================================================
+// SISTEMA DE FILTROS DE GRUPO
+// ============================================================================
+
+const FiltrosGrupo = {
+    /**
+     * Inicializa os botões de filtro
+     */
+    inicializar: function() {
+        if (!Estado.dadosCompletos || !Estado.dadosCompletos.demonstrativo) {
+            console.log('Dados ainda não carregados para criar filtros');
+            return;
+        }
+        
+        const container = document.getElementById('filtrosGrupoContainer');
+        const filtrosCategorias = document.getElementById('filtrosCategorias');
+        const filtrosGrupos = document.getElementById('filtrosGrupos');
+        
+        if (!container || !filtrosCategorias || !filtrosGrupos) return;
+        
+        // Limpar containers
+        filtrosCategorias.innerHTML = '';
+        filtrosGrupos.innerHTML = '';
+        
+        // Criar mapa de categorias e grupos
+        const categorias = Estado.dadosCompletos.demonstrativo.categorias;
+        
+        // Botão "Mostrar Todos"
+        const btnTodos = document.createElement('button');
+        btnTodos.className = 'btn btn-outline-primary btn-filtro-grupo active';
+        btnTodos.innerHTML = `
+            <i class="fas fa-list"></i> Mostrar Todos
+        `;
+        btnTodos.onclick = () => this.mostrarTodos();
+        filtrosCategorias.appendChild(btnTodos);
+        
+        // Criar botões de categoria
+        categorias.forEach(categoria => {
+            // Botão da categoria
+            const btnCategoria = document.createElement('button');
+            btnCategoria.className = 'btn btn-outline-secondary btn-filtro-categoria';
+            btnCategoria.dataset.categoriaId = categoria.id;
+            btnCategoria.innerHTML = `
+                <i class="fas fa-folder"></i> ${categoria.nome}
+            `;
+            btnCategoria.onclick = () => this.filtrarPorCategoria(categoria.id);
+            filtrosCategorias.appendChild(btnCategoria);
+            
+            // Criar botões dos grupos desta categoria
+            categoria.grupos.forEach(grupo => {
+                const btnGrupo = document.createElement('button');
+                btnGrupo.className = 'btn btn-outline-info btn-filtro-grupo';
+                btnGrupo.dataset.categoriaId = categoria.id;
+                btnGrupo.dataset.grupoId = grupo.id;
+                
+                btnGrupo.innerHTML = `
+                    <i class="fas fa-layer-group"></i> ${grupo.nome}
+                `;
+                btnGrupo.onclick = () => this.filtrarPorGrupo(categoria.id, grupo.id);
+                filtrosGrupos.appendChild(btnGrupo);
+            });
+        });
+        
+        // Mostrar container de filtros
+        container.style.display = 'block';
+    },
+    
+    /**
+     * Mostra todos os grupos
+     */
+    mostrarTodos: function() {
+        console.log('Mostrando todos os grupos');
+        
+        // Resetar filtros
+        Estado.filtrosAtivos.categorias = [];
+        Estado.filtrosAtivos.grupos = [];
+        
+        // Remover classe active de todos os botões
+        document.querySelectorAll('.btn-filtro-grupo, .btn-filtro-categoria').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Adicionar active ao botão "Mostrar Todos"
+        const btnTodos = document.querySelector('.btn-filtro-grupo');
+        if (btnTodos && btnTodos.textContent.includes('Mostrar Todos')) {
+            btnTodos.classList.add('active');
+        }
+        
+        // Mostrar todas as linhas
+        document.querySelectorAll('.categoria-row, .grupo-row').forEach(row => {
+            row.classList.remove('filtro-oculto');
+        });
+        
+        // Mostrar linha total original
+        const totalRow = document.querySelector('.total-row');
+        if (totalRow) totalRow.classList.remove('filtro-oculto');
+        
+        // Atualizar valores do total para os valores originais
+        this.atualizarTotalGeral();
+        
+        this.atualizarContador();
+    },
+    
+    /**
+     * Filtra por categoria específica
+     */
+    filtrarPorCategoria: function(categoriaId) {
+        console.log(`Filtrando por categoria: ${categoriaId}`);
+        
+        // Atualizar filtros ativos
+        Estado.filtrosAtivos.categorias = [categoriaId];
+        Estado.filtrosAtivos.grupos = [];
+        
+        // Atualizar botões
+        document.querySelectorAll('.btn-filtro-grupo, .btn-filtro-categoria').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        const btnCategoria = document.querySelector(`.btn-filtro-categoria[data-categoria-id="${categoriaId}"]`);
+        if (btnCategoria) btnCategoria.classList.add('active');
+        
+        // Aplicar filtro na tabela
+        document.querySelectorAll('.categoria-row').forEach(row => {
+            const rowCategoriaId = row.dataset.categoriaId;
+            if (rowCategoriaId === categoriaId) {
+                row.classList.remove('filtro-oculto');
+            } else {
+                row.classList.add('filtro-oculto');
+            }
+        });
+        
+        document.querySelectorAll('.grupo-row').forEach(row => {
+            const rowCategoriaId = row.dataset.categoriaId;
+            if (rowCategoriaId === categoriaId) {
+                row.classList.remove('filtro-oculto');
+            } else {
+                row.classList.add('filtro-oculto');
+            }
+        });
+        
+        // Atualizar total geral com valores da categoria filtrada
+        const categoria = Estado.dadosCompletos.demonstrativo.categorias.find(c => c.id === categoriaId);
+        if (categoria) {
+            this.atualizarTotalGeral(categoria.valores_atual, categoria.valores_anterior);
+        }
+        
+        // Mostrar linha total
+        const totalRow = document.querySelector('.total-row');
+        if (totalRow) totalRow.classList.remove('filtro-oculto');
+        
+        this.atualizarContador();
+    },
+    
+    /**
+     * Filtra por grupo específico
+     */
+    filtrarPorGrupo: function(categoriaId, grupoId) {
+        console.log(`Filtrando por grupo: ${grupoId} da categoria ${categoriaId}`);
+        
+        // Atualizar filtros ativos
+        Estado.filtrosAtivos.categorias = [categoriaId];
+        Estado.filtrosAtivos.grupos = [grupoId];
+        
+        // Atualizar botões
+        document.querySelectorAll('.btn-filtro-grupo, .btn-filtro-categoria').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        const btnGrupo = document.querySelector(`.btn-filtro-grupo[data-categoria-id="${categoriaId}"][data-grupo-id="${grupoId}"]`);
+        if (btnGrupo) btnGrupo.classList.add('active');
+        
+        // Ocultar todas as linhas primeiro
+        document.querySelectorAll('.categoria-row, .grupo-row').forEach(row => {
+            row.classList.add('filtro-oculto');
+        });
+        
+        // Mostrar apenas a categoria e grupo selecionados
+        document.querySelectorAll(`.categoria-row[data-categoria-id="${categoriaId}"]`).forEach(row => {
+            row.classList.remove('filtro-oculto');
+        });
+        
+        document.querySelectorAll(`.grupo-row[data-categoria-id="${categoriaId}"][data-grupo-id="${grupoId}"]`).forEach(row => {
+            row.classList.remove('filtro-oculto');
+        });
+        
+        // Atualizar total geral com valores do grupo filtrado
+        const categoria = Estado.dadosCompletos.demonstrativo.categorias.find(c => c.id === categoriaId);
+        const grupo = categoria?.grupos.find(g => g.id === grupoId);
+        if (grupo) {
+            this.atualizarTotalGeral(grupo.valores_atual, grupo.valores_anterior);
+        }
+        
+        // Mostrar linha total
+        const totalRow = document.querySelector('.total-row');
+        if (totalRow) totalRow.classList.remove('filtro-oculto');
+        
+        // NÃO expandir detalhes automaticamente - removido
+        
+        this.atualizarContador();
+    },
+    
+    /**
+     * Atualiza os valores do total geral baseado no filtro
+     */
+    atualizarTotalGeral: function(valoresAtual, valoresAnterior) {
+        const totalRow = document.querySelector('.total-row');
+        if (!totalRow) return;
+        
+        // Se não foram passados valores, usar o total original
+        if (!valoresAtual || !valoresAnterior) {
+            const totalOriginal = Estado.dadosCompletos.demonstrativo.total_geral;
+            valoresAtual = totalOriginal.valores_atual;
+            valoresAnterior = totalOriginal.valores_anterior;
+        }
+        
+        // Calcular variações
+        const varEmpenhada = Formatadores.variacao(valoresAtual.despesa_empenhada, valoresAnterior.despesa_empenhada);
+        const varLiquidada = Formatadores.variacao(valoresAtual.despesa_liquidada, valoresAnterior.despesa_liquidada);
+        const varPaga = Formatadores.variacao(valoresAtual.despesa_paga, valoresAnterior.despesa_paga);
+        
+        // Atualizar conteúdo da linha
+        totalRow.innerHTML = `
+            <td><strong>TOTAL GERAL</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.dotacao_inicial)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.dotacao_atualizada)}</strong></td>
+            <td class="text-end valor-ano-anterior"><strong>${Formatadores.moeda(valoresAnterior.despesa_empenhada)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.despesa_empenhada)}</strong></td>
+            <td class="text-end ${varEmpenhada.classe}"><strong>${varEmpenhada.valor}</strong></td>
+            <td class="text-end valor-ano-anterior"><strong>${Formatadores.moeda(valoresAnterior.despesa_liquidada)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.despesa_liquidada)}</strong></td>
+            <td class="text-end ${varLiquidada.classe}"><strong>${varLiquidada.valor}</strong></td>
+            <td class="text-end valor-ano-anterior"><strong>${Formatadores.moeda(valoresAnterior.despesa_paga)}</strong></td>
+            <td class="text-end"><strong>${Formatadores.moeda(valoresAtual.despesa_paga)}</strong></td>
+            <td class="text-end ${varPaga.classe}"><strong>${varPaga.valor}</strong></td>
+            <td class="text-end ${valoresAtual.saldo_dotacao < 0 ? 'text-danger' : ''}">
+                <strong>${Formatadores.moeda(valoresAtual.saldo_dotacao)}</strong>
+            </td>
+        `;
+    },
+    
+    /**
+     * Atualiza o contador de filtros
+     */
+    atualizarContador: function() {
+        const contador = document.getElementById('contadorFiltros');
+        if (!contador) return;
+        
+        const gruposVisiveis = document.querySelectorAll('.grupo-row:not(.filtro-oculto)').length;
+        const totalGrupos = document.querySelectorAll('.grupo-row').length;
+        
+        if (gruposVisiveis === totalGrupos) {
+            contador.textContent = 'Mostrando todos os grupos';
+        } else {
+            contador.textContent = `Mostrando ${gruposVisiveis} de ${totalGrupos} grupos`;
+        }
+    }
+};
+
+// ============================================================================
 // FUNÇÃO PRINCIPAL - BUSCAR E RENDERIZAR DADOS
 // ============================================================================
 
@@ -153,6 +415,9 @@ async function consultarDados() {
         renderizarDemonstrativo(dados.demonstrativo);
         renderizarCreditos(dados.creditos);
         atualizarInterface(dados);
+        
+        // Inicializar filtros de grupo
+        FiltrosGrupo.inicializar();
         
         mostrarMensagem('Dados carregados com sucesso!', 'success');
         
@@ -253,6 +518,7 @@ function renderizarDemonstrativo(demonstrativo) {
 function criarLinhaCategoria(categoria) {
     const tr = document.createElement('tr');
     tr.className = 'categoria-row';
+    tr.dataset.categoriaId = categoria.id;
     
     const atual = categoria.valores_atual;
     const anterior = categoria.valores_anterior;
@@ -720,12 +986,20 @@ function toggleExpandirTodos() {
 }
 
 // ============================================================================
+// FUNÇÕES DE FILTRO EXPORTADAS
+// ============================================================================
+
+function limparFiltrosGrupo() {
+    FiltrosGrupo.mostrarTodos();
+}
+
+// ============================================================================
 // INICIALIZAÇÃO
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('🚀 Sistema de Despesa Orçamentária v2.0');
-    console.log('📍 Toda lógica no backend, frontend só renderiza!');
+    console.log('🚀 Sistema de Despesa Orçamentária v3.0');
+    console.log('📍 Com sistema de filtros por grupo/categoria');
     
     // Configurar valores padrão
     configurarFiltrosPadrao();
@@ -841,5 +1115,6 @@ function configurarFiltrosPadrao() {
 window.consultarDados = consultarDados;
 window.exportarDados = exportarDados;
 window.limparCache = limparCache;
+window.limparFiltrosGrupo = limparFiltrosGrupo;
 window.toggleDetalhes = toggleDetalhes;
 window.toggleExpandirTodos = toggleExpandirTodos;
