@@ -1,0 +1,104 @@
+/* ============================================
+   Estilos da Tabela Comparativa de Despesas
+   ============================================ */
+
+/* Container da tabela com scroll horizontal melhorado */
+.tabela-comparativa-container {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-width: 100%;
+    margin-bottom: 20px;
+}
+
+/* Scrollbar customizada */
+.tabela-comparativa-container::-webkit-scrollbar {
+    height: 10px;
+}
+
+.tabela-comparativa-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.tabela-comparativa-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.tabela-comparativa-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Tabela com largura mínima para evitar compressão */
+.tabela-comparativa {
+    min-width: 1400px;
+    width: max-content;
+    table-layout: auto;
+}
+
+/* Ajuste de larguras das colunas */
+.tabela-comparativa th,
+.tabela-comparativa td {
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+}
+
+/* Primeira coluna (Descrição) - fixa na lateral */
+.tabela-comparativa td:first-child,
+.tabela-comparativa th:first-child {
+    min-width: 280px;
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 2;
+}
+
+.tabela-comparativa thead th:first-child {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+}
+
+/* Colunas numéricas com largura adequada */
+.tabela-comparativa td:not(:first-child),
+.tabela-comparativa th:not(:first-child) {
+    min-width: 120px;
+    text-align: right;
+}
+
+/* Colunas de variação podem ser menores */
+.tabela-comparativa .coluna-variacao {
+    min-width: 80px;
+}
+
+/* Valores monetários com fonte monospace */
+.tabela-comparativa tbody td:not(:first-child) {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.82rem;
+}
+
+/* Hover na linha */
+.tabela-comparativa tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* Linha total com destaque */
+.tabela-comparativa .total-row {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    border-top: 2px solid #dee2e6;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .tabela-comparativa {
+        font-size: 0.75rem;
+    }
+    
+    .tabela-comparativa td,
+    .tabela-comparativa th {
+        padding: 6px 8px;
+    }
+}

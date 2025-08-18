@@ -1,0 +1,89 @@
+/* ============================================
+   Estilos Específicos da Página de Despesas
+   Importa os componentes necessários
+   ============================================ */
+
+/* Importar componentes */
+@import '../componentes/tabela-comparativa.css';
+@import '../componentes/filtros-grupo.css';
+@import '../componentes/cards.css';
+@import '../componentes/filtros.css';
+@import '../componentes/botoes.css';
+
+/* Estilos específicos da página */
+.despesas-page {
+    min-height: 100vh;
+    background: #f5f6fa;
+}
+
+/* Badge da UG selecionada */
+#ugSelecionada {
+    font-size: 0.9rem;
+    padding: 8px 15px;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    border: none;
+    color: white;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+/* Container de ações */
+.acoes-container {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+/* Informações e alertas */
+.info-periodo {
+    background-color: #e3f2fd;
+    color: #1565c0;
+    border-radius: 8px;
+    border: none;
+    padding: 15px 20px;
+    margin-bottom: 15px;
+}
+
+/* Células da tabela com destaque por tipo */
+.tabela-comparativa tbody tr td:nth-child(4),
+.tabela-comparativa tbody tr td:nth-child(5),
+.tabela-comparativa tbody tr td:nth-child(6) {
+    background-color: rgba(243, 156, 18, 0.05);
+}
+
+.tabela-comparativa tbody tr td:nth-child(7),
+.tabela-comparativa tbody tr td:nth-child(8),
+.tabela-comparativa tbody tr td:nth-child(9) {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.tabela-comparativa tbody tr td:nth-child(10),
+.tabela-comparativa tbody tr td:nth-child(11),
+.tabela-comparativa tbody tr td:nth-child(12) {
+    background-color: rgba(155, 89, 182, 0.05);
+}
+
+/* Linhas de detalhe expandidas */
+.detalhe-row {
+    animation: slideDown 0.3s ease;
+    background-color: #fafbfc;
+}
+
+.detalhe-row td:first-child {
+    padding-left: 3.5rem !important;
+    font-size: 0.78rem;
+    color: #495057;
+}
+
+/* Animação de expansão */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 500px;
+    }
+}
